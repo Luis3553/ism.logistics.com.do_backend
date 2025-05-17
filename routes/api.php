@@ -4,6 +4,8 @@ use App\Http\Controllers\DetailsController;
 use App\Http\Controllers\DriverController;
 use App\Http\Controllers\GeofenceConfigController;
 use App\Http\Controllers\HomeController;
+use App\Http\Controllers\NotificationsController;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('home')->group(function () {
@@ -39,4 +41,14 @@ Route::prefix('user')->group(function () {
         Route::post('bulk_delete', [GeofenceConfigController::class, 'bulkDelete']);
     });
     Route::get('geofences', [GeofenceConfigController::class, 'getGeofences']);
+});
+
+Route::prefix('reports')->group(function () {
+    // Route::post('get', [ReportsControler::class, 'getReport']);
+    // Route::post('odometer', [ReportsController::class, 'createReport']);
+});
+
+Route::prefix('notifications')->group(function () {
+    Route::get('/', [NotificationsController::class, 'getNotifications']);
+    Route::get('tracker/{id}/vehicle', [NotificationsController::class, 'getRelatedVehicle']);
 });

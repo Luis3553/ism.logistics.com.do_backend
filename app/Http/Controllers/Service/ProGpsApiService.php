@@ -53,9 +53,29 @@ class ProGpsApiService
         return $this->post('vehicle/list');
     }
 
+    public function getVehicle(int $id)
+    {
+        return $this->post('vehicle/read', ['vehicle_id' => $id]);
+    }
+
     public function getTrackers(): array
     {
         return $this->post('tracker/list');
+    }
+
+    public function getEventTypes(): array
+    {
+        return $this->post('tracker/rule/list');
+    }
+
+    public function getHistoryOfTrackers($ids, string $from, string $to): array
+    {
+        return $this->post('history/tracker/list', [
+            'trackers' => $ids,
+            'from' => $from,
+            'to' => $to,
+            'ascending' => false
+        ]);
     }
 
     public function getGarages(): array
@@ -77,6 +97,118 @@ class ProGpsApiService
     {
         return $this->post('employee/list');
     }
+
+    public function getGroups(): array
+    {
+        return $this->post('tracker/group/list');
+    }
+
+    public function getModels(): array
+    {
+        return $this->post('tracker/list_models');
+    }
+
+    public function translateEventType(string $type): ?string
+    {
+        return $this->eventTypesTranslations[$type] ?? null;
+    }
+
+    public $eventTypesTranslations = [
+        "alarmcontrol" => "Alarma de carro",
+        "auto_geofence_in" => "Dentro de geocerca creada automáticamente",
+        "auto_geofence_out" => "Fuera de geocerca creada automáticamente",
+        "battery_off" => "Suministro de energia apagado",
+        "bracelet_close" => "Brazalete cerrado",
+        "bracelet_open" => "Brazalete abierto",
+        "case_closed" => "Tapa cerrada",
+        "case_opened" => "Tapa abierta",
+        "crash_alarm" => "Choque",
+        "cruise_control_off" => "Control de crucero Apagado",
+        "cruise_control_on" => "Control de crucero Encendido",
+        "detach" => "Tracker desconectado",
+        "attach" => "Tracker conectado",
+        "door_alarm" => "Apertura de la cajuela / maletero",
+        "force_location_request" => "Solicitar posición por SMS",
+        "forward_collision_warning" => "Alerta de colisión frontal",
+        "g_sensor" => "Detección de caída",
+        "gps_lost" => "Señal GPS perdida",
+        "gps_recover" => "Señal GPS recuperada",
+        "gsm_damp" => "Jammer GSM",
+        "gps_damp" => "Pérdida señal GPS",
+        "harsh_driving" => "Manejo brusco",
+        "headway_warning" => "Advertencia de distancia segura",
+        "hood_alarm" => "Apertura del toldo / capota",
+        "idle_end" => "Salió de ralentí",
+        "idle_start" => "Entró en ralentí",
+        "ignition" => "Activación de ignición mientras el modo alarma esta encendido",
+        "info" => "Notas informativas",
+        "input_change" => "Ignicion y cambio de entradas",
+        "inroute" => "Regreso a la ruta",
+        "outroute" => "Desviacion de la ruta",
+        "inzone" => "Ingreso a geocerca",
+        "outzone" => "Salida de geocerca",
+        "lane_departure" => "Alerta de salida involuntaria de carril",
+        "light_sensor_bright" => "Ambiente luminoso",
+        "light_sensor_dark" => "Ambiente oscuro",
+        "lock_closed" => "Cerradura cerrada",
+        "lock_opened" => "Cerradura abierta",
+        "lowpower" => "Bateria baja",
+        "obd_plug_in" => "Conexión con vehículo a través de la interfaz OBD II",
+        "obd_unplug" => "Desconexión con el vehículo a través de la interfaz OBD II",
+        "offline" => "Conexión perdida",
+        "odometer_set" => "Contador de kilometraje cambio de valor",
+        "online" => "Conexión restaurada",
+        "over_speed_reported" => "Velocidad excesiva (relacionado con hardware)",
+        "output_change" => "Cambio del estado de salida",
+        "parking" => "Movimiento sin autorización",
+        "peds_collision_warning" => "Alerta de colisión con peatón",
+        "peds_in_danger_zone" => "Peatón en zona peligrosa",
+        "poweroff" => "Dispositivo apagado",
+        "poweron" => "Dispositivo encendido",
+        "sos" => "Boton de panico presionado (SOS)",
+        "speedup" => "Velocidad excesiva (relacionado con plataforma)",
+        "tracker_rename" => "Renombramiento del objeto",
+        "track_end" => "Inicio de estacionamiento",
+        "track_start" => "Fin de estacionamiento",
+        "tsr_warning" => "Incumplimiento de señal de velocidad",
+        "sensor_inrange" => "Valor del sensor dentro de rango",
+        "sensor_outrange" => "Valor del sensor fuera de rango",
+        "strap_bolt_cut" => "El cinturón (perno) esta abierto",
+        "strap_bolt_ins" => "El cinturón (perno) esta insertado",
+        "vibration_start" => "inicio de vibración",
+        "vibration_end" => "Final de vibracion",
+        "work_status_change" => "Cambio de estado",
+        "call_button_pressed" => "Botón de llamada presionado",
+        "driver_changed" => "Сambio del conductor",
+        "driver_identified" => "Conductor identificado",
+        "driver_not_identified" => "Conductor no identificado",
+        "fueling" => "Aumento drástico del nivel de combustible. Se supone relleno",
+        "drain" => "Disminución drástica del nivel de combustible. Se supone desagüe",
+        "checkin_creation" => "Check-in",
+        "tacho" => "Notificaciones sobre la descarga de datos del tacógrafo",
+        "antenna_disconnect" => "Antena GPS apagada",
+        "check_engine_light" => "Luz del Check Engine (MIL) encendida",
+        "location_response" => "Respuesta a la solicitud de localización",
+        "backup_battery_low" => "Batería baja",
+        "fatigue_driving" => "Fatiga del conductor detectada",
+        "fatigue_driving_finished" => "Fatiga del conductor finalizada",
+        "distance_breached" => "Distancia establecida superada",
+        "distance_restored" => "Distancia establecida restablecida",
+        "excessive_parking" => "Exceso de tiempo de estacionado",
+        "excessive_parking_finished" => "Finalización de exceso de tiempo de estacionado",
+        "excessive_driving_start" => "Conducción excesiva",
+        "excessive_driving_end" => "Conducción excesiva finalizada",
+        "driver_absence" => "El conductor ha salido de la cabina",
+        "driver_enter" => "El conductor ha entrado en la cabina",
+        "driver_distraction_started" => "El conductor está distraído",
+        "driver_distraction_finished" => "El conductor no está distraído",
+        "external_device_connected" => "Dispositivo externo conectado",
+        "external_device_disconnected" => "Dispositivo externo desconectado",
+        "proximity_violation_start" => "Se incumplió la distancia de seguridad",
+        "proximity_violation_end" => "Se mantuvo la distancia de seguridad",
+        "no_movement" => "Sin movimiento",
+        "state_field_control" => "Valor esperado detectado"
+    ];
 
     // IGNORE THIS CODE FOR NOW
 

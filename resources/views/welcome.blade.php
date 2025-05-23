@@ -407,8 +407,18 @@
 <body class="antialiased">
     <div class="relative flex justify-center min-h-screen py-4 bg-gray-100 items-top sm:items-center sm:pt-0"
         style="font-size: 2rem;">
-        PRO GPS & TECHNOLOGY
+        <button onclick="downloadReport()"
+            style="padding: 13px 25px; cursor: pointer; background: white; border: 1px solid gray;"
+            onmouseover="this.style.background='lightgray'; this.style.color='black';"
+            onmouseout="this.style.background='white'; this.style.color='inherit';">Descargar
+            Reporte</button>
     </div>
 </body>
+
+<script>
+    function downloadReport() {
+        window.location.href = 'odometer/download';
+    }
+</script>
 
 </html>

@@ -24,7 +24,8 @@ class HomeController extends Controller
     {
         $date = $request->query('date'); // Format: YYYY-MM-DD
 
-        return response()->json(['travels_count' => $this->apiService->getHistoryOfTrackers("$date 00:00:00", "$date 23:59:59")]);
+        return response()->json(['travels_count' => 0]);
+        // return response()->json(['travels_count' => $this->apiService->getHistoryOfTrackers("$date 00:00:00", "$date 23:59:59")]);
     }
 
     public function getAverageOfTravelsCount(Request $request)

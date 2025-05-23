@@ -14,7 +14,7 @@ class ProGpsApiService
 
     public function __construct($apiKey)
     {
-        $this->apiKey = $apiKey;
+        $this->apiKey = "cf229226a28d0bc8a646d34b7fa86377";
         $this->baseUrl = 'https://app.progps.com.do/api-v2';
     }
 
@@ -58,9 +58,9 @@ class ProGpsApiService
         return $this->post('vehicle/read', ['vehicle_id' => $id]);
     }
 
-    public function getTrackers(): array
+    public function getTrackers($params = null): array
     {
-        return $this->post('tracker/list');
+        return $this->post('tracker/list', $params);
     }
 
     public function getEventTypes(): array
@@ -106,6 +106,81 @@ class ProGpsApiService
     public function getModels(): array
     {
         return $this->post('tracker/list_models');
+    }
+
+    public function getOdometersOfListOfTrackersInPeriodRange($trackersIds, $from, $to)
+    {
+        $responses = Http::pool(function (Pool $pool) use ($trackersIds, $from, $to) {
+            $requests = [];
+
+            foreach ($trackersIds as $id) {
+                $requests[$id] = $pool
+                    ->as($id)
+                    ->withHeaders(['Content-Type' => 'application/json'])
+                    ->post("{$this->baseUrl}/tracker/counter/data/read", [
+                        'hash' => $this->apiKey,
+                        'tracker_id' => $id,
+                        'type' => 'odometer',
+                        'from' => $from,
+                        'to' => $to
+                    ]);
+            }
+
+            return array_values($requests);
+        });
+
+        $result = [];
+        $idsOfTrackersWithNotReportOfTheDate = [];
+
+        foreach ($responses as $id => $response) {
+            $res = $response->json();
+
+            if ($res['success'] ?? false) {
+                $record = [];
+
+                if (!empty($res['list']) && is_array($res['list'])) {
+                    $lastEntry = end($res['list']);
+                    $record = ['value' => $lastEntry['value'] ?? 0, 'update_time' => $lastEntry['update_time']];
+                    $result[$id] = $record;
+                } else {
+                    $idsOfTrackersWithNotReportOfTheDate[] = $id;
+                }
+            }
+        }
+
+        $responses1 = [];
+
+        if (!empty($idsOfTrackersWithNotReportOfTheDate)) {
+            $responses1 = Http::pool(function (Pool $pool) use ($idsOfTrackersWithNotReportOfTheDate) {
+                $requests = [];
+
+                foreach ($idsOfTrackersWithNotReportOfTheDate as $id) {
+                    $requests[$id] = $pool
+                        ->as($id)
+                        ->withHeaders(['Content-Type' => 'application/json'])
+                        ->post("{$this->baseUrl}/tracker/get_counters", [
+                            'hash' => $this->apiKey,
+                            'tracker_id' => $id,
+                            'type' => 'odometer',
+                        ]);
+                }
+
+                return array_values($requests);
+            });
+        }
+
+        foreach ($responses1 as $id => $response) {
+            $res = $response->json();
+
+            if (!empty($res['list']) && is_array($res['list'])) {
+                $lastEntry = collect($res['list'])->firstWhere('type', 'odometer');
+                $record = ['value' => $lastEntry['value'] ?: 0, 'update_time' => $lastEntry['update_time'] ?: ''];
+                $result[$id] = $record;
+            }
+        }
+
+        Log::info($result);
+        return $result;
     }
 
     public function translateEventType(string $type): ?string

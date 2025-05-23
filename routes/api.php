@@ -5,6 +5,7 @@ use App\Http\Controllers\DriverController;
 use App\Http\Controllers\GeofenceConfigController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\NotificationsController;
+use App\Http\Controllers\ReportController;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Route;
 
@@ -44,11 +45,19 @@ Route::prefix('user')->group(function () {
 });
 
 Route::prefix('reports')->group(function () {
-    // Route::post('get', [ReportsControler::class, 'getReport']);
-    // Route::post('odometer', [ReportsController::class, 'createReport']);
+    Route::get('odometer', function () {
+        return view('welcome');
+    });
+    Route::get('odometer/download', [ReportController::class, 'generateOdometerReport']);
+    // Route::post('get', [ReportController::class, 'getReport']);
 });
 
 Route::prefix('notifications')->group(function () {
     Route::get('/', [NotificationsController::class, 'getNotifications']);
     Route::get('tracker/{id}/vehicle', [NotificationsController::class, 'getRelatedVehicle']);
+
+    // List of the items for the filters
+    Route::get('trackers', [NotificationsController::class, 'getTrackers']);
+    Route::get('rules', [NotificationsController::class, 'getRules']);
+    Route::get('groups', [NotificationsController::class, 'getGroups']);
 });

@@ -11,33 +11,43 @@ class NotificationsController extends Controller
     public function __construct(protected ProGpsApiService $apiService) {}
     public function getNotifications(Request $request)
     {
-        $groupBy = $request->query('groupBy', 'groups'); // 'groups' or 'notifications'
-        $search = $request->query('s', '');
-        $from = $request->query('from', now()->startOfDay()->format('Y-m-d H:i:s'));
+        // Step 0: Parameters
+        $groupBy = $request->query('groupBy', 'groups');
+
+        $trackersFilter = $request->query('trackers', 'all');
+        $groupsFilter = $request->query('groups', 'all');
+        $notificationsFilter = $request->query('notifications', 'all');
+
+        $trackersFilter = $trackersFilter === 'all' ? null : explode(',', $trackersFilter);
+        $groupsFilter = $groupsFilter === 'all' ? null : explode(',', $groupsFilter);
+        $notificationsFilter = $notificationsFilter === 'all' ? null : explode(',', $notificationsFilter);
+
+        $from = $request->query('from', now()->subDays(119)->startOfDay()->format('Y-m-d H:i:s'));
         $to = $request->query('to', now()->endOfDay()->format('Y-m-d H:i:s'));
 
-        $endpoints = [
+        // Step 1: Fetch API data
+        $responses = $this->apiService->fetchBatchRequests([
             'trackers' => 'tracker/list',
             'groups' => 'tracker/group/list',
             'rules' => 'tracker/rule/list'
-        ];
-
-        $responses = $this->apiService->fetchBatchRequests($endpoints);
+        ]);
 
         $trackers = $responses['trackers']['list'];
         $groups = $responses['groups']['list'];
         $rules = $responses['rules']['list'];
+
         $notifications = $this->apiService->getHistoryOfTrackers(collect($trackers)->pluck('id'), $from, $to);
+        if (!isset($notifications['list'])) {
+            return response()->json(['failed' => 'bad request']);
+        }
+        $notifications = $notifications['list'];
 
-        if (isset($notifications['list'])) $notifications = $notifications['list'];
-        else return response()->json(['failed' => 'bad request']);
-
-        // Map helpers
+        // Step 2: Index maps
         $groupsMap = collect($groups)->keyBy('id');
         $trackersMap = collect($trackers)->keyBy('id');
         $rulesMap = collect($rules)->keyBy('id');
 
-        // Event logic
+        // Step 3: Event categorization
         $eventPairs = [
             'idle_start' => 'idle_end',
             'auto_geofence_in' => 'auto_geofence_out',
@@ -80,21 +90,18 @@ class NotificationsController extends Controller
             'headway_warning',
             'hood_alarm',
             'ignition',
-            'info',
             'input_change',
             'output_change',
             'lane_departure',
             'light_sensor_bright',
             'light_sensor_dark',
             'lowpower',
-            'odometer_set',
             'over_speed_reported',
             'parking',
             'peds_collision_warning',
             'peds_in_danger_zone',
             'sos',
             'speedup',
-            'tracker_rename',
             'work_status_change',
             'call_button_pressed',
             'driver_changed',
@@ -102,7 +109,6 @@ class NotificationsController extends Controller
             'driver_not_identified',
             'fueling',
             'drain',
-            'checkin_creation',
             'tacho',
             'antenna_disconnect',
             'check_engine_light',
@@ -111,196 +117,285 @@ class NotificationsController extends Controller
             'no_movement',
             'state_field_control'
         ];
+        $validDisplayEvents = array_merge($selfContained, array_keys($eventPairs));
 
-        // Step 1: Sort notifications by time
+        // Step 4: Sort and parse notifications
         usort($notifications, fn($a, $b) => strtotime($a['time']) <=> strtotime($b['time']));
+        $sessions = $this->buildSessions($notifications, $eventPairs, $selfContained);
 
+        // Step 5: Filter valid sessions
+        $sessions = array_filter($sessions, fn($s) => in_array($s['event'], $validDisplayEvents, true));
+        // Log::info($sessions);
+
+        // Step 6: Group and respond
+        return match ($groupBy) {
+            'notifications' => $this->groupByNotification($sessions, $trackersMap, $groupsMap, $rulesMap, $trackersFilter, $groupsFilter, $notificationsFilter),
+            'tracker' => $this->groupByTracker($sessions, $trackersMap, $rulesMap, $trackersFilter, $notificationsFilter),
+            default => $this->groupByGroup($sessions, $trackersMap, $groupsMap, $rulesMap, $trackersFilter, $groupsFilter, $notificationsFilter)
+        };
+    }
+
+    private function buildSessions(array $notifications, array $eventPairs, array $selfContained): array
+    {
         $open = [];
         $sessions = [];
-
-        $validDisplayEvents = array_merge($selfContained, array_keys($eventPairs));
 
         foreach ($notifications as $n) {
             $trackerId = $n['tracker_id'];
             $evt = $n['event'];
             $time = $n['time'];
 
-            // Skip events that are not in selfContained or eventPairs (either key or value)
             if (
                 !in_array($evt, $selfContained, true) &&
                 !array_key_exists($evt, $eventPairs) &&
                 !in_array($evt, array_values($eventPairs), true)
-            ) {
-                continue;
-            }
+            ) continue;
 
             if (in_array($evt, $selfContained, true)) {
-                $sessions[] = [
-                    'tracker_id' => $trackerId,
-                    'event' => $evt,
-                    'start' => $time,
-                    'end' => $time,
-                    'duration' => '00s',
-                    'notification' => $n,
-                ];
-                continue;
-            }
-
-            if (isset($eventPairs[$evt])) {
+                $sessions[] = $this->createSession($trackerId, $evt, $time, $time, '00s', $n);
+            } elseif (isset($eventPairs[$evt])) {
                 $open[$trackerId][$evt] = $n;
-                continue;
-            }
+            } elseif ($startEvent = array_search($evt, $eventPairs, true)) {
+                if (isset($open[$trackerId][$startEvent])) {
+                    $startNotif = $open[$trackerId][$startEvent];
+                    unset($open[$trackerId][$startEvent]);
 
-            $startEvent = array_search($evt, $eventPairs, true);
-            if ($startEvent !== false && isset($open[$trackerId][$startEvent])) {
-                $startNotif = $open[$trackerId][$startEvent];
-                unset($open[$trackerId][$startEvent]);
-
-                $sessions[] = [
-                    'tracker_id' => $trackerId,
-                    'event' => $startEvent,
-                    'start' => $startNotif['time'],
-                    'end' => $time,
-                    'duration' => \Carbon\Carbon::parse($startNotif['time'])
+                    $duration = \Carbon\Carbon::parse($startNotif['time'])
                         ->diff(\Carbon\Carbon::parse($time))
-                        ->format('%Hh %Imin'),
-                    'notification' => $startNotif,
-                ];
-            } else {
-                $sessions[] = [
-                    'tracker_id' => $trackerId,
-                    'event' => $evt,
-                    'start' => $time,
-                    'end' => $time,
-                    'duration' => '00s',
-                    'notification' => $n,
-                ];
+                        ->format('%Hh %Imin');
+
+                    $sessions[] = $this->createSession($trackerId, $startEvent, $startNotif['time'], $time, $duration, $startNotif);
+                } else {
+                    $sessions[] = $this->createSession($trackerId, $evt, $time, $time, '00s', $n);
+                }
             }
         }
 
-        // Handle open sessions without an end
         foreach ($open as $tid => $starts) {
             foreach ($starts as $evt => $notif) {
-                $sessions[] = [
-                    'tracker_id' => $tid,
-                    'event' => $evt,
-                    'start' => $notif['time'],
-                    'end' => null,
-                    'duration' => null,
-                    'notification' => $notif,
-                ];
+                $sessions[] = $this->createSession($tid, $evt, $notif['time'], null, null, $notif);
             }
         }
 
-        // Filter sessions to include only displayable events
-        $sessions = array_filter($sessions, function ($session) use ($validDisplayEvents) {
-            return in_array($session['event'], $validDisplayEvents, true);
-        });
+        return $sessions;
+    }
 
-        // Step 2: Group sessions
-        if ($groupBy === 'notifications') {
-            $grouped = [];
+    private function createSession($tracker_id, $event, $start, $end, $duration, $notification): array
+    {
+        return compact('tracker_id', 'event', 'start', 'end', 'duration', 'notification');
+    }
 
-            foreach ($sessions as $session) {
-                $tracker = $trackersMap->get($session['tracker_id']);
-                if (!$tracker) continue;
+    private function groupByNotification(array $sessions, $trackersMap, $groupsMap, $rulesMap, $trackersFilter, $groupsFilter, $notificationsFilter)
+    {
+        $grouped = [];
 
-                $groupId = $tracker['group_id'] ?? 0;
-                $groupName = $groupsMap[$groupId]['title'] ?? 'Sin agrupar';
-                $notificationName = $this->apiService->translateEventType($session['event']);
-                $isEmergency = !empty($rulesMap[$session['notification']['rule_id']]['extended_params']['emergency']);
+        foreach ($sessions as $session) {
+            if (
+                ($trackersFilter && !in_array($session['tracker_id'], $trackersFilter)) ||
+                ($groupsFilter && !in_array($tracker['group_id'] ?? 0, $groupsFilter)) ||
+                ($notificationsFilter && !in_array($session['event'], $notificationsFilter))
+            ) continue;
 
-                $trackerData = [
-                    'notification_id' => $session['notification']['id'],
-                    'name' => $tracker['label'],
-                    'vehicle_id' => $session['notification']['assets'][0]['id'] ?? null,
-                    'emergency' => $isEmergency,
-                    'start_date' => \Carbon\Carbon::parse($session['start'])->format('d/m/Y h:i:s a'),
-                    'end_date' => $session['end'] ? \Carbon\Carbon::parse($session['end'])->format('d/m/Y h:i:s a') : '-',
-                    'address' => $session['notification']['address'],
-                    'time' => $session['duration'] ?? '-',
-                ];
 
-                $notificationIndex = collect($grouped)->search(fn($n) => $n['name'] === $notificationName);
+            $tracker = $trackersMap->get($session['tracker_id']);
+            if (!$tracker) continue;
 
-                if ($notificationIndex === false) {
-                    $grouped[] = [
-                        'name' => $notificationName,
-                        'groups' => [
-                            [
-                                'name' => $groupName,
-                                'trackers' => [$trackerData]
-                            ]
-                        ]
-                    ];
-                } else {
-                    $group = &$grouped[$notificationIndex];
+            $groupId = $tracker['group_id'] ?? 0;
+            $groupName = $groupsMap[$groupId]['title'] ?? 'Sin agrupar';
+            $notificationName = $this->apiService->translateEventType($session['event']);
+            $isEmergency = !empty($rulesMap[$session['notification']['rule_id']]['extended_params']['emergency']);
 
-                    $groupInList = collect($group['groups'])->search(fn($g) => $g['name'] === $groupName);
-                    if ($groupInList === false) {
-                        $group['groups'][] = [
-                            'name' => $groupName,
-                            'trackers' => [$trackerData]
-                        ];
-                    } else {
-                        $group['groups'][$groupInList]['trackers'][] = $trackerData;
-                    }
-                }
-            }
+            $trackerData = $this->formatTrackerData($tracker, $session, $notificationName, $isEmergency);
 
-            return response()->json(['notifications' => $grouped]);
-        } else {
-            // Default: group by group ID
-            $grouped = [];
-
-            foreach ($sessions as $session) {
-                $tracker = $trackersMap->get($session['tracker_id']);
-                if (!$tracker) continue;
-
-                $groupId = $tracker['group_id'] ?? 0;
-                $groupName = $groupsMap[$groupId]['title'] ?? 'Sin Agrupar';
-                $notificationName = $this->apiService->translateEventType($session['event']);
-                $isEmergency = !empty($rulesMap[$session['notification']['rule_id']]['extended_params']['emergency']);
-
-                $trackerData = [
-                    'notification_id' => $session['notification']['id'],
-                    'name' => $tracker['label'],
-                    'vehicle_id' => $session['notification']['assets'][0]['id'] ?? null,
-                    'emergency' => $isEmergency,
-                    'address' => $session['notification']['address'],
-                    'start_date' => \Carbon\Carbon::parse($session['start'])->format('d/m/Y h:i:s a'),
-                    'end_date' => $session['end'] ? \Carbon\Carbon::parse($session['end'])->format('d/m/Y h:i:s a') : '-',
-                    'time' => $session['duration'] ?? '-',
-                ];
-
-                if (!isset($grouped[$groupId])) {
-                    $grouped[$groupId] = [
-                        'id' => $groupId,
+            $notificationIndex = collect($grouped)->search(fn($n) => $n['name'] === $notificationName);
+            if ($notificationIndex === false) {
+                $grouped[] = [
+                    'name' => $notificationName,
+                    'groups' => [[
                         'name' => $groupName,
-                        'notifications' => []
-                    ];
-                }
+                        'trackers' => [$trackerData]
+                    ]]
+                ];
+            } else {
+                $group = &$grouped[$notificationIndex];
+                $groupInList = collect($group['groups'])->search(fn($g) => $g['name'] === $groupName);
 
-                $notificationIndex = collect($grouped[$groupId]['notifications'])->search(fn($n) => $n['name'] === $notificationName);
-
-                if ($notificationIndex === false) {
-                    $grouped[$groupId]['notifications'][] = [
-                        'name' => $notificationName,
+                if ($groupInList === false) {
+                    $group['groups'][] = [
+                        'name' => $groupName,
                         'trackers' => [$trackerData]
                     ];
                 } else {
-                    $grouped[$groupId]['notifications'][$notificationIndex]['trackers'][] = $trackerData;
+                    $group['groups'][$groupInList]['trackers'][] = $trackerData;
                 }
             }
-
-            $final = array_values(array_filter($grouped, fn($g) => !empty($g['notifications'])));
-            return response()->json(['groups' => $final]);
         }
+
+        foreach ($grouped as &$group) {
+            foreach ($group['groups'] as &$g) {
+                usort($g['trackers'], fn($a, $b) => strtotime($b['_raw_start']) <=> strtotime($a['_raw_start']));
+                foreach ($g['trackers'] as &$t) unset($t['_raw_start']);
+            }
+        }
+
+        return response()->json(['notifications' => $grouped]);
     }
+
+    private function groupByTracker(array $sessions, $trackersMap, $rulesMap, $trackersFilter, $notificationsFilter)
+    {
+        $grouped = [];
+
+        foreach ($sessions as $session) {
+            if (
+                ($trackersFilter && !in_array($session['tracker_id'], $trackersFilter)) ||
+                ($notificationsFilter && !in_array($session['event'], $notificationsFilter))
+            ) continue;
+
+            $tracker = $trackersMap->get($session['tracker_id']);
+            if (!$tracker) continue;
+
+            $notificationName = $this->apiService->translateEventType($session['event']);
+            $isEmergency = !empty($rulesMap[$session['notification']['rule_id']]['extended_params']['emergency']);
+            $trackerData = $this->formatTrackerData($tracker, $session, $notificationName, $isEmergency);
+
+            $trackerId = $tracker['id'];
+
+            // Initialize tracker data
+            if (!isset($grouped[$trackerId])) {
+                $grouped[$trackerId] = [
+                    'id' => $trackerId,
+                    'name' => $tracker['label'],
+                    'alerts' => []
+                ];
+            }
+
+            // Group alerts by name
+            $alertName = $trackerData['name'];
+            $grouped[$trackerId]['alerts'][$alertName]['name'] ??= $alertName;
+            $grouped[$trackerId]['alerts'][$alertName]['events'][] = $trackerData;
+        }
+
+        // Sort alerts and clean up
+        foreach ($grouped as &$tracker) {
+            foreach ($tracker['alerts'] as &$alertGroup) {
+                usort($alertGroup['events'], fn($a, $b) => strtotime($b['_raw_start']) <=> strtotime($a['_raw_start']));
+                foreach ($alertGroup['events'] as &$event) unset($event['_raw_start']);
+            }
+            // Convert associative alerts map to array
+            $tracker['alerts'] = array_values($tracker['alerts']);
+        }
+
+        return response()->json(['trackers' => array_values($grouped)]);
+    }
+
+    private function groupByGroup(array $sessions, $trackersMap, $groupsMap, $rulesMap, $trackersFilter, $groupsFilter, $notificationsFilter)
+    {
+
+        foreach ($sessions as $session) {
+
+            $tracker = $trackersMap->get($session['tracker_id']);
+            if (!$tracker) continue;
+
+            if (
+                ($trackersFilter && !in_array($session['tracker_id'], $trackersFilter)) ||
+                ($groupsFilter && !in_array($tracker['group_id'] ?? 0, $groupsFilter)) ||
+                ($notificationsFilter && !in_array($session['notification']['rule_id'], $notificationsFilter))
+            ) continue;
+
+            $groupId = $tracker['group_id'] ?? 0;
+            $groupName = $groupsMap[$groupId]['title'] ?? 'Sin Agrupar';
+            $notificationName = $this->apiService->translateEventType($session['event']);
+            $isEmergency = !empty($rulesMap[$session['notification']['rule_id']]['extended_params']['emergency']);
+
+            $trackerData = $this->formatTrackerData($tracker, $session, $notificationName, $isEmergency);
+
+            $grouped[$groupId]['id'] ??= $groupId;
+            $grouped[$groupId]['name'] ??= $groupName;
+
+            $notificationIndex = collect($grouped[$groupId]['notifications'] ?? [])->search(fn($n) => $n['name'] === $notificationName);
+
+            if ($notificationIndex === false) {
+                $grouped[$groupId]['notifications'][] = [
+                    'name' => $notificationName,
+                    'trackers' => [$trackerData]
+                ];
+            } else {
+                $grouped[$groupId]['notifications'][$notificationIndex]['trackers'][] = $trackerData;
+            }
+        }
+
+        foreach ($grouped as &$group) {
+            foreach ($group['notifications'] as &$notification) {
+                usort($notification['trackers'], fn($a, $b) => strtotime($b['_raw_start']) <=> strtotime($a['_raw_start']));
+                foreach ($notification['trackers'] as &$t) unset($t['_raw_start']);
+            }
+        }
+
+        $final = array_values(array_filter($grouped, fn($g) => !empty($g['notifications'])));
+        return response()->json(['groups' => $final]);
+    }
+
+    private function formatTrackerData($tracker, $session, $notificationName, $isEmergency)
+    {
+        return [
+            'notification_id' => $session['notification']['id'],
+            'name' => $tracker['label'],
+            'vehicle_id' => $session['notification']['assets'][0]['id'] ?? null,
+            'emergency' => $isEmergency,
+            'start_date' => \Carbon\Carbon::parse($session['start'])->format('d/m/Y h:i:s a'),
+            '_raw_start' => $session['start'],
+            'end_date' => $session['end'] ? \Carbon\Carbon::parse($session['end'])->format('d/m/Y h:i:s a') : '-',
+            'latitude' => $session['notification']['location']['lat'],
+            'longitude' => $session['notification']['location']['lng'],
+            'address' => $session['notification']['address'],
+            'time' => $session['duration'] ?? '-',
+        ];
+    }
+
 
     public function getRelatedVehicle(Request $request, int $id)
     {
         $vehicle = $this->apiService->getVehicle($id);
         return response()->json($vehicle);
+    }
+
+    public function getTrackers(Request $request)
+    {
+        $search = trim($request->query('search', ''));
+        $params = $search ? ["labels" => [strtolower($search), strtoupper($search)]] : [];
+
+        $trackers = collect($this->apiService->getTrackers($params)['list'])
+            ->map(fn($tracker) => [
+                'value' => $tracker['id'],
+                'label' => $tracker['label']
+            ]);
+
+
+        return response()->json($trackers);
+    }
+
+    public function getRules(Request $request)
+    {
+        $events = collect($this->apiService->getEventTypes()['list'])->map(fn($event) => [
+            'value' => $event['id'],
+            'label' => $event['name']
+        ]);
+
+        return response()->json($events);
+    }
+
+    public function getGroups(Request $request)
+    {
+        $groups = collect($this->apiService->getGroups()['list'])->map(fn($group) => [
+            'value' => $group['id'],
+            'label' => $group['title'],
+        ]);
+
+        $groups->push([
+            'value' => 0,
+            'label' => 'Grupo Principal',
+        ]);
+
+        return response()->json($groups);
     }
 }

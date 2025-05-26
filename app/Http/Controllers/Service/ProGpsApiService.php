@@ -108,6 +108,11 @@ class ProGpsApiService
         return $this->post('tracker/list_models');
     }
 
+    public function getTags(): array
+    {
+        return $this->post('tag/list');
+    }
+
     public function getOdometersOfListOfTrackersInPeriodRange($trackersIds, $from, $to)
     {
         $responses = Http::pool(function (Pool $pool) use ($trackersIds, $from, $to) {
@@ -179,7 +184,6 @@ class ProGpsApiService
             }
         }
 
-        Log::info($result);
         return $result;
     }
 

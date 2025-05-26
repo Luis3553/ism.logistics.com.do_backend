@@ -49,73 +49,89 @@ class NotificationsController extends Controller
 
         // Step 3: Event categorization
         $eventPairs = [
-            'idle_start' => 'idle_end',
-            'auto_geofence_in' => 'auto_geofence_out',
-            'bracelet_close' => 'bracelet_open',
-            'case_closed' => 'case_opened',
-            'cruise_control_off' => 'cruise_control_on',
-            'detach' => 'attach',
-            'gps_lost' => 'gps_recover',
-            'inroute' => 'outroute',
-            'inzone' => 'outzone',
-            'lock_closed' => 'lock_opened',
-            'obd_plug_in' => 'obd_unplug',
-            'offline' => 'online',
-            'poweroff' => 'poweron',
-            'track_end' => 'track_start',
-            'sensor_inrange' => 'sensor_outrange',
-            'strap_bolt_cut' => 'strap_bolt_ins',
-            'vibration_start' => 'vibration_end',
-            'fatigue_driving' => 'fatigue_driving_finished',
-            'distance_breached' => 'distance_restored',
-            'excessive_parking' => 'excessive_parking_finished',
-            'excessive_driving_start' => 'excessive_driving_end',
-            'driver_absence' => 'driver_enter',
-            'driver_distraction_started' => 'driver_distraction_finished',
-            'external_device_connected' => 'external_device_disconnected',
-            'proximity_violation_start' => 'proximity_violation_end',
+            "track_end" => "track_start",
+            "excessive_driving_start" => "excessive_driving_end",
+            "excessive_parking" => "excessive_parking_finished",
+            "idle_start" => "idle_end",
+            "fueling" => "drain",
+            "cruise_control_on" => "cruise_control_off",
+            "distance_breached" => "distance_restored",
+            "driver_absence" => "driver_enter",
+            "driver_distraction_started" => "driver_distraction_finished",
+            "fatigue_driving" => "fatigue_driving_finished",
+            "driver_identified" => "driver_not_identified",
+            "proximity_violation_start" => "proximity_violation_end",
+            "bracelet_open" => "bracelet_close",
+            "obd_plug_in" => "obd_unplug",
+            "external_device_connected" => "external_device_disconnected",
+            "battery_off" => "battery_on",
+            "gps_lost" => "gps_recover",
+            "light_sensor_bright" => "light_sensor_dark",
+            "lock_opened" => "lock_closed",
+            "strap_bolt_cut" => "strap_bolt_ins",
+            "poweroff" => "poweron",
+            "vibration_start" => "vibration_end",
+            "sensor_outrange" => "sensor_inrange",
+            "inzone" => "outzone"
         ];
 
         $selfContained = [
-            'alarmcontrol',
-            'battery_off',
-            'crash_alarm',
-            'door_alarm',
-            'force_location_request',
-            'forward_collision_warning',
-            'g_sensor',
-            'gsm_damp',
-            'gps_damp',
-            'harsh_driving',
-            'headway_warning',
-            'hood_alarm',
-            'ignition',
-            'input_change',
-            'output_change',
-            'lane_departure',
-            'light_sensor_bright',
-            'light_sensor_dark',
-            'lowpower',
-            'over_speed_reported',
-            'parking',
-            'peds_collision_warning',
-            'peds_in_danger_zone',
-            'sos',
-            'speedup',
-            'work_status_change',
-            'call_button_pressed',
-            'driver_changed',
-            'driver_identified',
-            'driver_not_identified',
-            'fueling',
-            'drain',
-            'tacho',
-            'antenna_disconnect',
-            'check_engine_light',
-            'location_response',
-            'backup_battery_low',
-            'no_movement',
-            'state_field_control'
+            "over_speed_reported",
+            "param",
+            "outroute",
+            "work_status_change",
+            "harsh_driving",
+            "auto_geofence_out",
+            "crash_alarm",
+            "driver_changed",
+            "g_sensor",
+            "no_movement",
+            "sos",
+            "parking",
+            "backup_battery_low",
+            "call_button_pressed",
+            "alarmcontrol",
+            "case_opened",
+            "check_engine_light",
+            "door_alarm",
+            "antenna_disconnect",
+            "gps_damp",
+            "gsm_damp",
+            "hood_alarm",
+            "ignition",
+            "location_response",
+            "lowpower",
+            "detach",
+            "poweroff",
+            "state_field_control",
+            "over_speed_reported",
+            "param",
+            "outroute",
+            "work_status_change",
+            "harsh_driving",
+            "auto_geofence_out",
+            "crash_alarm",
+            "driver_changed",
+            "g_sensor",
+            "no_movement",
+            "sos",
+            "parking",
+            "backup_battery_low",
+            "call_button_pressed",
+            "alarmcontrol",
+            "case_opened",
+            "check_engine_light",
+            "door_alarm",
+            "antenna_disconnect",
+            "gps_damp",
+            "gsm_damp",
+            "hood_alarm",
+            "ignition",
+            "location_response",
+            "lowpower",
+            "detach",
+            "poweroff",
+            "state_field_control"
         ];
         $validDisplayEvents = array_merge($selfContained, array_keys($eventPairs));
 
@@ -337,14 +353,16 @@ class NotificationsController extends Controller
 
     private function formatTrackerData($tracker, $session, $notificationName, $isEmergency)
     {
+        $vehicle_id = collect($session['notification']['assets'] ?? [])->firstWhere('type', 'vehicle')['id'] ?? null;
+
         return [
             'notification_id' => $session['notification']['id'],
             'name' => $tracker['label'],
-            'vehicle_id' => $session['notification']['assets'][0]['id'] ?? null,
+            'vehicle_id' => $vehicle_id,
             'emergency' => $isEmergency,
-            'start_date' => \Carbon\Carbon::parse($session['start'])->format('d/m/Y h:i:s a'),
+            'start_date' => \Carbon\Carbon::parse($session['start'])->format('d/m/Y h:i:s A'),
             '_raw_start' => $session['start'],
-            'end_date' => $session['end'] ? \Carbon\Carbon::parse($session['end'])->format('d/m/Y h:i:s a') : '-',
+            'end_date' => $session['end'] ? \Carbon\Carbon::parse($session['end'])->format('d/m/Y h:i:s A') : '-',
             'latitude' => $session['notification']['location']['lat'],
             'longitude' => $session['notification']['location']['lng'],
             'address' => $session['notification']['address'],
@@ -356,6 +374,17 @@ class NotificationsController extends Controller
     public function getRelatedVehicle(Request $request, int $id)
     {
         $vehicle = $this->apiService->getVehicle($id);
+        if (!$vehicle['success']) return response()->json(['Failed' => 'Bad Request'], 400);
+
+        $tags = collect($this->apiService->getTags()['list']);
+        $vehicle['value']['tags'] = collect($vehicle['value']['tags'] ?? [])
+            ->map(fn($tagId) => $tags->firstWhere('id', $tagId))
+            ->filter()
+            ->values();
+
+        $driver = collect($this->apiService->getEmployees()['list'])->firstWhere('tracker_id', $vehicle['value']['tracker_id']);
+        $vehicle['value']['driver'] = $driver;
+
         return response()->json($vehicle);
     }
 

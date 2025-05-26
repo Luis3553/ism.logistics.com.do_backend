@@ -45,21 +45,38 @@ class ReportController extends Controller
             'alignment' => ['horizontal' => Alignment::HORIZONTAL_LEFT]
         ]);
 
-        // Data rows
+        // // Create a new array with update times
+        $sortedTrackers = $trackers->toArray();
+
+        usort($sortedTrackers, function ($a, $b) use ($OdometerReport) {
+            $aTime = $OdometerReport[$a['id']]['update_time'] ?? null;
+            $bTime = $OdometerReport[$b['id']]['update_time'] ?? null;
+
+            if ($aTime === null && $bTime === null) return 0;
+            if ($aTime === null) return 1;
+            if ($bTime === null) return -1;
+
+            return strtotime($aTime) <=> strtotime($bTime);
+        });
+
+        // Now loop through sorted trackers
         $row = 2;
-        foreach ($trackers as $tracker) {
+        foreach ($sortedTrackers as $tracker) {
             $updateTime = $OdometerReport[$tracker['id']]['update_time'] ?? null;
             $vehicle = $vehicles[$tracker['id']] ?? null;
 
-            $sheet->fromArray([
-                $vehicle['reg_number'] ?? "-",
-                $updateTime ? date('m/d/Y h:i:s A', strtotime($updateTime)) : "-",
-                isset($OdometerReport[$tracker['id']]['value']) ? number_format($OdometerReport[$tracker['id']]['value'], 0, '.', '') : "-",
-                ($vehicle['reg_number'] ?? null) ?: "-",
-                $tracker['label']
-            ], null, 'A' . $row);
-            $row++;
+            if ($updateTime) {
+                $sheet->fromArray([
+                    $vehicle['reg_number'] ?? "-",
+                    $updateTime ? date('m/d/Y h:i:s A', strtotime($updateTime)) : "-",
+                    isset($OdometerReport[$tracker['id']]['value']) ? number_format($OdometerReport[$tracker['id']]['value'], 0, '.', '') : "-",
+                    ($vehicle['reg_number'] ?? null) ?: "-",
+                    $tracker['label']
+                ], null, 'A' . $row);
+                $row++;
+            }
         }
+
 
         // Apply left alignment to all data cells
         $sheet->getStyle('A2:E' . ($row - 1))->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
@@ -72,7 +89,7 @@ class ReportController extends Controller
         $sheet->getColumnDimension('E')->setWidth(43);
 
         // Save to temp file and stream response
-        $filename = 'Odometer_Report_' . date('Y_m_d') . '.xlsx';
+        $filename = 'Reporte_Odometro_' . date('Y_m_d') . '.xlsx';
         $tempFile = tempnam(sys_get_temp_dir(), $filename);
         (new Xlsx($spreadsheet))->save($tempFile);
 

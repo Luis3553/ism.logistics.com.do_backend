@@ -70,7 +70,7 @@ class ReportController extends Controller
                     $vehicle['reg_number'] ?? "-",
                     $updateTime ? date('m/d/Y h:i:s A', strtotime($updateTime)) : "-",
                     isset($OdometerReport[$tracker['id']]['value']) ? number_format($OdometerReport[$tracker['id']]['value'], 0, '.', '') : "-",
-                    ($vehicle['reg_number'] ?? null) ?: "-",
+                    ($vehicle['trailer_reg_number'] ?? null) ?: "-",
                     $tracker['label']
                 ], null, 'A' . $row);
                 $row++;
@@ -96,7 +96,22 @@ class ReportController extends Controller
         return response()->download($tempFile, $filename)->deleteFileAfterSend(true);
     }
 
-
-
     public function createAutomaticReport(Request $request) {}
+
+    public function getGroupedTrackers()
+    {
+        $trackers = collect($this->apiService->getTrackers()['list']);
+        $trackersGroups = collect($this->apiService->getGroups()['list']);
+
+        $groupedTrackers = $trackers->groupBy(function ($tracker) use ($trackersGroups) {
+            $group = $trackersGroups->firstWhere('id', $tracker['group_id']);
+            return $group ? $group['title'] : 'Sin Agrupar';
+        });
+
+        $groupedTrackers = $groupedTrackers->sortByDesc(function ($trackers, $group) {
+            return count($trackers);
+        })->toArray();
+
+        return response()->json($groupedTrackers);
+    }
 }

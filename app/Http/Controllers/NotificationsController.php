@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Service\ProGpsApiService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Spatie\Async\Pool;
+use Throwable;
 
 class NotificationsController extends Controller
 {
@@ -49,39 +51,43 @@ class NotificationsController extends Controller
 
         // Step 3: Event categorization
         $eventPairs = [
-            "track_end" => "track_start",
-            "excessive_driving_start" => "excessive_driving_end",
-            "excessive_parking" => "excessive_parking_finished",
-            "idle_start" => "idle_end",
-            "fueling" => "drain",
-            "cruise_control_on" => "cruise_control_off",
-            "distance_breached" => "distance_restored",
-            "driver_absence" => "driver_enter",
-            "driver_distraction_started" => "driver_distraction_finished",
-            "fatigue_driving" => "fatigue_driving_finished",
-            "driver_identified" => "driver_not_identified",
-            "proximity_violation_start" => "proximity_violation_end",
-            "bracelet_open" => "bracelet_close",
-            "obd_plug_in" => "obd_unplug",
-            "external_device_connected" => "external_device_disconnected",
-            "battery_off" => "battery_on",
-            "gps_lost" => "gps_recover",
-            "light_sensor_bright" => "light_sensor_dark",
-            "lock_opened" => "lock_closed",
-            "strap_bolt_cut" => "strap_bolt_ins",
-            "poweroff" => "poweron",
-            "vibration_start" => "vibration_end",
-            "sensor_outrange" => "sensor_inrange",
-            "inzone" => "outzone"
+            "track_end" =>  "track_start",
+            "excessive_driving_start" =>  "excessive_driving_end",
+            "excessive_parking" =>  "excessive_parking_finished",
+            "idle_start" =>  "idle_end",
+            "fueling" =>  "drain",
+            "cruise_control_on" =>  "cruise_control_off",
+            "distance_breached" =>  "distance_restored",
+            "driver_absence" =>  "driver_enter",
+            "driver_distraction_started" =>  "driver_distraction_finished",
+            "fatigue_driving" =>  "fatigue_driving_finished",
+            "driver_identified" =>  "driver_not_identified",
+            "proximity_violation_start" =>  "proximity_violation_end",
+            "bracelet_open" =>  "bracelet_close",
+            "obd_plug_in" =>  "obd_unplug",
+            "external_device_connected" =>  "external_device_disconnected",
+            "battery_off" =>  "battery_on",
+            "offline" => "online",
+            "light_sensor_bright" =>  "light_sensor_dark",
+            "lock_opened" =>  "lock_closed",
+            "strap_bolt_cut" =>  "strap_bolt_ins",
+            "poweroff" =>  "poweron",
+            "vibration_start" =>  "vibration_end",
+            "sensor_outrange" =>  "sensor_inrange",
+            "inzone" =>  "outzone"
         ];
 
         $selfContained = [
             "over_speed_reported",
-            "param",
+            "speedup",
             "outroute",
+            "task_status_change",
             "work_status_change",
+            "idling",
             "harsh_driving",
+            "driver_assistance",
             "auto_geofence_out",
+            "autocontrol",
             "crash_alarm",
             "driver_changed",
             "g_sensor",
@@ -103,36 +109,11 @@ class NotificationsController extends Controller
             "lowpower",
             "detach",
             "poweroff",
-            "state_field_control",
-            "over_speed_reported",
-            "param",
-            "outroute",
-            "work_status_change",
-            "harsh_driving",
-            "auto_geofence_out",
-            "crash_alarm",
-            "driver_changed",
-            "g_sensor",
-            "no_movement",
-            "sos",
-            "parking",
-            "backup_battery_low",
-            "call_button_pressed",
-            "alarmcontrol",
-            "case_opened",
-            "check_engine_light",
-            "door_alarm",
-            "antenna_disconnect",
-            "gps_damp",
-            "gsm_damp",
-            "hood_alarm",
-            "ignition",
-            "location_response",
-            "lowpower",
-            "detach",
-            "poweroff",
+            "input_change",
+            "output_change",
             "state_field_control"
         ];
+
         $validDisplayEvents = array_merge($selfContained, array_keys($eventPairs));
 
         // Step 4: Sort and parse notifications
@@ -264,7 +245,7 @@ class NotificationsController extends Controller
         foreach ($sessions as $session) {
             if (
                 ($trackersFilter && !in_array($session['tracker_id'], $trackersFilter)) ||
-                ($notificationsFilter && !in_array($session['event'], $notificationsFilter))
+                ($notificationsFilter && !in_array($session['notification']['rule_id'], $notificationsFilter))
             ) continue;
 
             $tracker = $trackersMap->get($session['tracker_id']);
@@ -286,7 +267,7 @@ class NotificationsController extends Controller
             }
 
             // Group alerts by name
-            $alertName = $trackerData['name'];
+            $alertName = $notificationName;
             $grouped[$trackerId]['alerts'][$alertName]['name'] ??= $alertName;
             $grouped[$trackerId]['alerts'][$alertName]['events'][] = $trackerData;
         }
@@ -306,7 +287,7 @@ class NotificationsController extends Controller
 
     private function groupByGroup(array $sessions, $trackersMap, $groupsMap, $rulesMap, $trackersFilter, $groupsFilter, $notificationsFilter)
     {
-
+        $grouped = [];
         foreach ($sessions as $session) {
 
             $tracker = $trackersMap->get($session['tracker_id']);
@@ -426,5 +407,92 @@ class NotificationsController extends Controller
         ]);
 
         return response()->json($groups);
+    }
+
+    public function testFunction(Request $request)
+    {
+        // $id = 10367472;
+        ini_set('max_execution_time', 300); // 5 minutes
+        ini_set('memory_limit', '1G');
+
+        $ids = $this->apiService->listIds; // currently 80 ids
+
+        function detectSpeedBurstsFromCsvString($apiService, $id, $maxSpeedThreshold)
+        {
+            $rawDataInCsv = $apiService->getRawData([
+                'tracker_id' => $id,
+                "columns" => [
+                    "lat",
+                    "lng",
+                    "speed"
+                ],
+                'from' => "2025-05-01T00:00:00.000Z",
+                'to' => "2025-05-08T00:00:00.000Z",
+                'format' => 'csv'
+            ]);
+
+            $stream = fopen('php://temp', 'r+');
+            fwrite($stream, $rawDataInCsv);
+            rewind($stream);
+
+            $headers = fgetcsv($stream);
+            $events = [];
+            $inHighSpeed = false;
+            $highSpeedPeriod = [];
+            $speeds = [];
+
+            while (($row = fgetcsv($stream)) !== false) {
+                $data = array_combine($headers, $row);
+                $speed = (float) $data['speed'];
+                $time = $data['msg_time'];
+
+                if ($speed > $maxSpeedThreshold) {
+                    if (!$inHighSpeed) {
+                        $inHighSpeed = true;
+                        $highSpeedPeriod = ['start_time' => $time];
+                        $speeds = [];
+                    }
+                    $speeds[] = $speed;
+                } elseif ($inHighSpeed) {
+                    $highSpeedPeriod['end_time'] = $time;
+                    $highSpeedPeriod['maxSpeed'] = max($speeds);
+                    $highSpeedPeriod['averageSpeed'] = round(array_sum($speeds) / count($speeds));
+                    $events[] = $highSpeedPeriod;
+
+                    $inHighSpeed = false;
+                    $highSpeedPeriod = [];
+                    $speeds = [];
+                }
+            }
+
+            if ($inHighSpeed && !empty($speeds)) {
+                $highSpeedPeriod['end_time'] = $time;
+                $highSpeedPeriod['maxSpeed'] = max($speeds);
+                $highSpeedPeriod['averageSpeed'] = round(array_sum($speeds) / count($speeds));
+                $events[] = $highSpeedPeriod;
+            }
+
+            fclose($stream);
+            return $events;
+        }
+
+        $pool = Pool::create()->concurrency(10); // adjust based on your CPU/RAM
+        $results = [];
+
+        foreach ($ids as $id) {
+            $apiService = $this->apiService;
+            $pool->add(function () use ($apiService, $id) {
+                // Heavy processing
+                return detectSpeedBurstsFromCsvString($apiService, $id, 100);
+            })->then(function ($output) use (&$results, $id) {
+                $results[$id] = $output;
+            })->catch(function (Throwable $exception) use ($id) {
+                Log::error("Object $id failed: " . $exception->getMessage());
+            });
+        }
+
+        $pool->wait();
+
+        return response()->json($results);
     }
 }

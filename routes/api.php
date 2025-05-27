@@ -45,6 +45,7 @@ Route::prefix('user')->group(function () {
 });
 
 Route::prefix('reports')->group(function () {
+    Route::get('panel/trackers', [ReportController::class, 'getGroupedTrackers']);
     Route::get('odometer', function () {
         return view('welcome');
     });
@@ -60,4 +61,5 @@ Route::prefix('notifications')->group(function () {
     Route::get('trackers', [NotificationsController::class, 'getTrackers']);
     Route::get('rules', [NotificationsController::class, 'getRules']);
     Route::get('groups', [NotificationsController::class, 'getGroups']);
+    Route::get('test', [NotificationsController::class, 'testFunction']);
 });

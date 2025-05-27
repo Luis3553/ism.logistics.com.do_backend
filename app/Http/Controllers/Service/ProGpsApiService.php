@@ -14,11 +14,11 @@ class ProGpsApiService
 
     public function __construct($apiKey)
     {
-        $this->apiKey = "cf229226a28d0bc8a646d34b7fa86377";
+        $this->apiKey = $apiKey;
         $this->baseUrl = 'https://app.progps.com.do/api-v2';
     }
 
-    private function post(string $endpoint, $params = []): array
+    private function post(string $endpoint, $params = [])
     {
         $params['hash'] = $this->apiKey;
 
@@ -26,7 +26,7 @@ class ProGpsApiService
             'Content-Type' => 'application/json',
         ])->post("{$this->baseUrl}/{$endpoint}", $params);
 
-        return $response->json() ?? [];
+        return $response;
     }
 
     function fetchBatchRequests(array $endpoints): array
@@ -50,22 +50,22 @@ class ProGpsApiService
 
     public function getVehicles(): array
     {
-        return $this->post('vehicle/list');
+        return $this->post('vehicle/list')->json() ?? [];
     }
 
     public function getVehicle(int $id)
     {
-        return $this->post('vehicle/read', ['vehicle_id' => $id]);
+        return $this->post('vehicle/read', ['vehicle_id' => $id])->json() ?? [];
     }
 
     public function getTrackers($params = null): array
     {
-        return $this->post('tracker/list', $params);
+        return $this->post('tracker/list', $params)->json() ?? [];
     }
 
     public function getEventTypes(): array
     {
-        return $this->post('tracker/rule/list');
+        return $this->post('tracker/rule/list')->json() ?? [];
     }
 
     public function getHistoryOfTrackers($ids, string $from, string $to): array
@@ -75,43 +75,53 @@ class ProGpsApiService
             'from' => $from,
             'to' => $to,
             'ascending' => false
-        ]);
+        ])->json() ?? [];
     }
 
     public function getGarages(): array
     {
-        return $this->post('garage/list');
+        return $this->post('garage/list')->json() ?? [];
     }
 
     public function getGeofences($params = null): array
     {
-        return $this->post('zone/list', $params);
+        return $this->post('zone/list', $params)->json() ?? [];
     }
 
     public function getDepartments(): array
     {
-        return $this->post('department/list');
+        return $this->post('department/list')->json() ?? [];
     }
 
     public function getEmployees(): array
     {
-        return $this->post('employee/list');
+        return $this->post('employee/list')->json() ?? [];
     }
 
     public function getGroups(): array
     {
-        return $this->post('tracker/group/list');
+        return $this->post('tracker/group/list')->json() ?? [];
     }
 
     public function getModels(): array
     {
-        return $this->post('tracker/list_models');
+        return $this->post('tracker/list_models')->json() ?? [];
     }
 
     public function getTags(): array
     {
-        return $this->post('tag/list');
+        return $this->post('tag/list')->json() ?? [];
     }
+
+    public function getRawData($params = [])
+    {
+        $response = $this->post("tracker/raw_data/read", $params);
+        if ($response->successful()) Log::info($params['tracker_id'] . ' - ' . 'successful');
+        $csv = $response->body();
+
+        return $csv;
+    }
+
 
     public function getOdometersOfListOfTrackersInPeriodRange($trackersIds, $from, $to)
     {
@@ -191,6 +201,186 @@ class ProGpsApiService
     {
         return $this->eventTypesTranslations[$type] ?? null;
     }
+
+    public $listIds = [
+        10273187,
+        10273191,
+        10275230,
+        10280388,
+        10280389,
+        10280390,
+        10343018,
+        10343205,
+        10348855,
+        10351350,
+        10357019,
+        10361179,
+        10363013,
+        10363081,
+        10367160,
+        10367178,
+        10367188,
+        10367199,
+        10367211,
+        10367434,
+        10367435,
+        10367436,
+        10367438,
+        10367439,
+        10367440,
+        10367441,
+        10367442,
+        10367443,
+        10367444,
+        10367445,
+        10367446,
+        10367447,
+        10367448,
+        10367449,
+        10367450,
+        10367451,
+        10367452,
+        10367453,
+        10367454,
+        10367455,
+        10367456,
+        10367457,
+        10367458,
+        10367459,
+        10367460,
+        10367461,
+        10367462,
+        10367463,
+        10367464,
+        10367465,
+        10367466,
+        10367467,
+        10367469,
+        10367470,
+        10367471,
+        10367472,
+        10367473,
+        10367474,
+        10367475,
+        10367477,
+        10367478,
+        10367479,
+        10367480,
+        10367481,
+        10367482,
+        10367483,
+        10367484,
+        10367485,
+        10367486,
+        10367590,
+        10367676,
+        10369910,
+        10369911,
+        10369912,
+        10369913,
+        10369914,
+        10369915,
+        10369916,
+        10369917,
+        10369918,
+        10369919,
+        10369920,
+        10369921,
+        10369922,
+        10369923,
+        10369924,
+        10369925,
+        10369926,
+        10369927,
+        10369928,
+        10369929,
+        10369930,
+        10369931,
+        10369932,
+        10369933,
+        10369934,
+        10369935,
+        10369936,
+        10369937,
+        10369938,
+        10369939,
+        10369940,
+        10369941,
+        10369942,
+        10369943,
+        10369944,
+        10369945,
+        10369946,
+        10369947,
+        10369948,
+        10369949,
+        10369950,
+        10369951,
+        10369952,
+        10369953,
+        10369954,
+        10369955,
+        10369956,
+        10369957,
+        10369958,
+        10369959,
+        10369960,
+        10369962,
+        10369963,
+        10369964,
+        10369965,
+        10369966,
+        10369967,
+        10369968,
+        10369969,
+        10369970,
+        10369971,
+        10369972,
+        10369973,
+        10369974,
+        10369975,
+        10369976,
+        10369977,
+        10369978,
+        10369979,
+        10369980,
+        10369981,
+        10369982,
+        10369983,
+        10369984,
+        10369985,
+        10369986,
+        10369987,
+        10369988,
+        10369989,
+        10369990,
+        10369991,
+        10369992,
+        10369993,
+        10369994,
+        10369995,
+        10369996,
+        10369997,
+        10369998,
+        10369999,
+        10370000,
+        10370001,
+        10370002,
+        10370003,
+        10370004,
+        10370005,
+        10370006,
+        10370007,
+        10370008,
+        10370009,
+        10370010,
+        10370020,
+        10370138,
+        10370139,
+        10370140,
+        10370141,
+        10370336
+    ];
 
     public $eventTypesTranslations = [
         "alarmcontrol" => "Alarma de carro",

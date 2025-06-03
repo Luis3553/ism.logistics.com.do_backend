@@ -16,18 +16,7 @@ class Kernel extends ConsoleKernel
      * @param  \Illuminate\Console\Scheduling\Schedule  $schedule
      * @return void
      */
-    protected function schedule(Schedule $schedule)
-    {
-        // $schedule->job(new StoreStatisticsJob())
-        //     ->timezone('America/Santo_Domingo')
-        //     ->lastDayOfMonth('23:50');
-        $schedule->job(new FetchApiDataJob())
-            ->timezone('America/Santo_Domingo')
-            ->hourly();
-        $schedule->job(new RestartContactsInvoicedAndConfirmedStatusJob())
-            ->timezone('America/Santo_Domingo')
-            ->monthly();
-    }
+    protected function schedule(Schedule $schedule) {}
 
     /**
      * Register the commands for the application.

@@ -435,7 +435,7 @@
             return;
         }
 
-        fetch('odometer/download', {
+        fetch('odometer/generate', {
                 method: 'GET',
                 headers: {
                     'X-Hash-Token': sessionKey

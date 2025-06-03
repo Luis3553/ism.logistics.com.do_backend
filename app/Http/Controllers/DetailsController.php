@@ -10,8 +10,8 @@ class DetailsController extends Controller
     public function __construct(protected ProGpsApiService $apiService) {}
     public function report_1(Request $request)
     {
-        $date = $request->query('date', now('America/Santo_Domingo')->toDateString());
-        if ($date === now('America/Santo_Domingo')->toDateString()) {
+        $date = $request->query('date', now()->toDateString());
+        if ($date === now()->toDateString()) {
             return response()->json(['report_1' => $this->apiService->getSumOfTrackersOdometerActualValue()]);
         } else {
             return response()->json(['report_1' => $this->apiService->getSumOfOdometersValueInPastDate($date)]);
@@ -19,16 +19,16 @@ class DetailsController extends Controller
     }
     public function report_2(Request $request)
     {
-        $date = $request->query('date', now('America/Santo_Domingo')->toDateString());
-        if ($date === now('America/Santo_Domingo')->toDateString()) {
+        $date = $request->query('date', now()->toDateString());
+        if ($date === now()->toDateString()) {
             return count($this->apiService->getTripReportsOfTrackersParallel("2025-04-16"));
         } else {
         }
     }
     public function report_3(Request $request)
     {
-        $date = $request->query('date', now('America/Santo_Domingo')->toDateString());
-        if ($date === now('America/Santo_Domingo')->toDateString()) {
+        $date = $request->query('date', now()->toDateString());
+        if ($date === now()->toDateString()) {
             return $this->apiService->getSumOfTrackersOdometerActualValue();
         } else {
         }

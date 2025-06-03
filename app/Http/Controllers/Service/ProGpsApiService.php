@@ -63,6 +63,11 @@ class ProGpsApiService
         return $this->post('tracker/list', $params)->json() ?? [];
     }
 
+    public function getTracker(int $id)
+    {
+        return $this->post('tracker/read', ['tracker_id' => $id])->json() ?? [];
+    }
+
     public function getEventTypes(): array
     {
         return $this->post('tracker/rule/list')->json() ?? [];
@@ -113,6 +118,28 @@ class ProGpsApiService
         return $this->post('tag/list')->json() ?? [];
     }
 
+    public function getUserInfo(): array
+    {
+        return $this->post('user/get_info')->json() ?? [];
+    }
+
+    public function getAddressUsingCoordinates($latitude, $longitude): string
+    {
+        $response = $this->post('geocoder/search_location', [
+            'hash' => $this->apiKey,
+            'lat' => $latitude,
+            'lng' => $$longitude,
+            'lang' => 'es_ES',
+            'geocoder' => 'google'
+        ]);
+
+        if ($response->successful()) {
+            return $response->json()['value'] ?? '';
+        } else {
+            return "Failed to get coordinates";
+        }
+    }
+
     public function getRawData($params = [])
     {
         $response = $this->post("tracker/raw_data/read", $params);
@@ -123,31 +150,40 @@ class ProGpsApiService
     }
 
 
-    public function getOdometersOfListOfTrackersInPeriodRange($trackersIds, $from, $to)
+    public function getOdometersOfListOfTrackersInPeriodRange($trackersIds, $date)
     {
-        $responses = Http::pool(function (Pool $pool) use ($trackersIds, $from, $to) {
-            $requests = [];
+        $responses = [];
+        $trackerChunks = array_chunk($trackersIds->toArray(), 50);
 
-            foreach ($trackersIds as $id) {
-                $requests[$id] = $pool
-                    ->as($id)
-                    ->withHeaders(['Content-Type' => 'application/json'])
-                    ->post("{$this->baseUrl}/tracker/counter/data/read", [
-                        'hash' => $this->apiKey,
-                        'tracker_id' => $id,
-                        'type' => 'odometer',
-                        'from' => $from,
-                        'to' => $to
-                    ]);
-            }
+        foreach ($trackerChunks as $chunk) {
+            $batchResponses = Http::pool(function (Pool $pool) use ($chunk, $date) {
+                $requests = [];
 
-            return array_values($requests);
-        });
+                foreach ($chunk as $id) {
+                    $requests[$id] = $pool
+                        ->as($id)
+                        ->withHeaders(['Content-Type' => 'application/json'])
+                        ->timeout(60)
+                        ->post("{$this->baseUrl}/tracker/counter/data/read", [
+                            'hash' => $this->apiKey,
+                            'tracker_id' => $id,
+                            'type' => 'odometer',
+                            'from' => "$date 00:00:00",
+                            'to' => "$date 23:59:59"
+                        ]);
+                }
+
+                return array_values($requests);
+            });
+
+            $responses = array_replace($responses, $batchResponses);
+        }
 
         $result = [];
         $idsOfTrackersWithNotReportOfTheDate = [];
 
         foreach ($responses as $id => $response) {
+            Log::info($response);
             $res = $response->json();
 
             if ($res['success'] ?? false) {

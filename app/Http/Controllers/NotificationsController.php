@@ -5,7 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Service\ProGpsApiService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
-use Spatie\Async\Pool;
+use Symfony\Component\Process\Process;
 use Throwable;
 
 class NotificationsController extends Controller
@@ -357,10 +357,11 @@ class NotificationsController extends Controller
         $vehicle = $this->apiService->getVehicle($id);
         if (!$vehicle['success']) return response()->json(['Failed' => 'Bad Request'], 400);
 
-        $tags = collect($this->apiService->getTags()['list']);
-        $vehicle['value']['tags'] = collect($vehicle['value']['tags'] ?? [])
-            ->map(fn($tagId) => $tags->firstWhere('id', $tagId))
-            ->filter()
+        $tags = collect($this->apiService->getTags()['list'])->keyBy('id');
+        $tracker = collect($this->apiService->getTracker($vehicle['value']['tracker_id']));
+
+        $vehicle['value']['tags'] = collect($tracker['value']['tag_bindings'] ?? [])
+            ->map(fn($tag) => $tags[$tag['tag_id']] ?? null)
             ->values();
 
         $driver = collect($this->apiService->getEmployees()['list'])->firstWhere('tracker_id', $vehicle['value']['tracker_id']);
@@ -379,7 +380,6 @@ class NotificationsController extends Controller
                 'value' => $tracker['id'],
                 'label' => $tracker['label']
             ]);
-
 
         return response()->json($trackers);
     }
@@ -411,87 +411,14 @@ class NotificationsController extends Controller
 
     public function testFunction(Request $request)
     {
-        // $id = 10367472;
-        ini_set('max_execution_time', 300); // 5 minutes
-        ini_set('memory_limit', '1G');
+        set_time_limit(2000);
+        $ids = $this->apiService->listIds;
 
-        $ids = $this->apiService->listIds; // currently 80 ids
+        $nodeScript = base_path('node-processor/main.js');
+        $cmd = "node $nodeScript " . implode(' ', $ids);
+        $output = shell_exec($cmd);
 
-        function detectSpeedBurstsFromCsvString($apiService, $id, $maxSpeedThreshold)
-        {
-            $rawDataInCsv = $apiService->getRawData([
-                'tracker_id' => $id,
-                "columns" => [
-                    "lat",
-                    "lng",
-                    "speed"
-                ],
-                'from' => "2025-05-01T00:00:00.000Z",
-                'to' => "2025-05-08T00:00:00.000Z",
-                'format' => 'csv'
-            ]);
-
-            $stream = fopen('php://temp', 'r+');
-            fwrite($stream, $rawDataInCsv);
-            rewind($stream);
-
-            $headers = fgetcsv($stream);
-            $events = [];
-            $inHighSpeed = false;
-            $highSpeedPeriod = [];
-            $speeds = [];
-
-            while (($row = fgetcsv($stream)) !== false) {
-                $data = array_combine($headers, $row);
-                $speed = (float) $data['speed'];
-                $time = $data['msg_time'];
-
-                if ($speed > $maxSpeedThreshold) {
-                    if (!$inHighSpeed) {
-                        $inHighSpeed = true;
-                        $highSpeedPeriod = ['start_time' => $time];
-                        $speeds = [];
-                    }
-                    $speeds[] = $speed;
-                } elseif ($inHighSpeed) {
-                    $highSpeedPeriod['end_time'] = $time;
-                    $highSpeedPeriod['maxSpeed'] = max($speeds);
-                    $highSpeedPeriod['averageSpeed'] = round(array_sum($speeds) / count($speeds));
-                    $events[] = $highSpeedPeriod;
-
-                    $inHighSpeed = false;
-                    $highSpeedPeriod = [];
-                    $speeds = [];
-                }
-            }
-
-            if ($inHighSpeed && !empty($speeds)) {
-                $highSpeedPeriod['end_time'] = $time;
-                $highSpeedPeriod['maxSpeed'] = max($speeds);
-                $highSpeedPeriod['averageSpeed'] = round(array_sum($speeds) / count($speeds));
-                $events[] = $highSpeedPeriod;
-            }
-
-            fclose($stream);
-            return $events;
-        }
-
-        $pool = Pool::create()->concurrency(10); // adjust based on your CPU/RAM
-        $results = [];
-
-        foreach ($ids as $id) {
-            $apiService = $this->apiService;
-            $pool->add(function () use ($apiService, $id) {
-                // Heavy processing
-                return detectSpeedBurstsFromCsvString($apiService, $id, 100);
-            })->then(function ($output) use (&$results, $id) {
-                $results[$id] = $output;
-            })->catch(function (Throwable $exception) use ($id) {
-                Log::error("Object $id failed: " . $exception->getMessage());
-            });
-        }
-
-        $pool->wait();
+        $results = json_decode($output, true);
 
         return response()->json($results);
     }

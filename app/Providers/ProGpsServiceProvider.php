@@ -18,11 +18,11 @@ class ProGpsServiceProvider extends ServiceProvider
             $request = $app['request'];
             $hash = $request->header('X-Hash-Token');
 
-            if (!$hash) {
-                abort(400, 'Missing X-Hash-Token header');
-            }
+            // if (!$hash) {
+            //     abort(400, 'Missing X-Hash-Token header');
+            // }
 
-            return new ProGpsApiService($hash);
+            return new ProGpsApiService("cf229226a28d0bc8a646d34b7fa86377");
         });
     }
 

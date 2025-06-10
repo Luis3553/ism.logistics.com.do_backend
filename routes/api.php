@@ -46,15 +46,28 @@ Route::prefix('user')->group(function () {
 Route::prefix('reports')->group(function () {
     Route::get('panel/trackers', [ReportController::class, 'getGroupedTrackers']);
 
+    // PROVISIONAL
     Route::get('odometer', function () {
         return view('welcome');
     });
+    Route::get('speedup', function () {
+        return view('welcome2');
+    });
 
-    Route::get('report/list', [ReportController::class, 'getListOfUsersGeneratedReports']);
-    Route::get('report/{id}', [ReportController::class, 'getStatusOfReport']);
-    Route::get('report/generate', [ReportController::class, 'generateReport']);
-    Route::get('report/{id}/retrieve', [ReportController::class, 'retrieveReport']);
-    Route::get('report/{id}/delete', [ReportController::class, 'deleteReport']);
+    // Route::get('speedup/generate', [ReportController::class, 'generateOdometerReport']);
+    Route::get('odometer/generate', [ReportController::class, 'generateOdometerReport']);
+
+    Route::get('list', [ReportController::class, 'getListOfUsersGeneratedReports']);
+    Route::post('generate', [ReportController::class, 'generateReport']);
+
+    Route::get('{id}/status', [ReportController::class, 'getStatusOfReport']);
+    Route::get('{id}/retrieve', [ReportController::class, 'retrieveReport']);
+    Route::get('{id}/download', [ReportController::class, 'downloadReport']);
+    Route::delete('{id}/delete', [ReportController::class, 'deleteReport']);
+
+    // private endpoints
+    Route::put('/{id}/status/update', [ReportController::class, 'updateReportStatus']);
+    Route::put('/{id}/result', [ReportController::class, 'updateReport']);
 });
 
 Route::prefix('notifications')->group(function () {

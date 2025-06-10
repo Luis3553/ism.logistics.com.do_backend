@@ -68,17 +68,25 @@ class ProGpsApiService
         return $this->post('tracker/read', ['tracker_id' => $id])->json() ?? [];
     }
 
+    public function getTrackersStates($ids)
+    {
+        return $this->post('tracker/get_states', ['trackers' => $ids]) ?? [];
+    }
+
     public function getEventTypes(): array
     {
         return $this->post('tracker/rule/list')->json() ?? [];
     }
 
-    public function getHistoryOfTrackers($ids, string $from, string $to): array
+    public function getHistoryOfTrackers($ids, string $from, string $to, $events): array
     {
+
         return $this->post('history/tracker/list', [
             'trackers' => $ids,
             'from' => $from,
             'to' => $to,
+            'limit' => 1000,
+            'events' => $events,
             'ascending' => false
         ])->json() ?? [];
     }
@@ -143,7 +151,6 @@ class ProGpsApiService
     public function getRawData($params = [])
     {
         $response = $this->post("tracker/raw_data/read", $params);
-        if ($response->successful()) Log::info($params['tracker_id'] . ' - ' . 'successful');
         $csv = $response->body();
 
         return $csv;
@@ -168,8 +175,8 @@ class ProGpsApiService
                             'hash' => $this->apiKey,
                             'tracker_id' => $id,
                             'type' => 'odometer',
-                            'from' => "$date 00:00:00",
-                            'to' => "$date 23:59:59"
+                            'from' => explode('T', $date)[0] . "T00:00:00",
+                            'to' => explode('T', $date)[0] . "T23:59:59",
                         ]);
                 }
 
@@ -183,7 +190,6 @@ class ProGpsApiService
         $idsOfTrackersWithNotReportOfTheDate = [];
 
         foreach ($responses as $id => $response) {
-            Log::info($response);
             $res = $response->json();
 
             if ($res['success'] ?? false) {
@@ -237,6 +243,8 @@ class ProGpsApiService
     {
         return $this->eventTypesTranslations[$type] ?? null;
     }
+
+    public $validReportTypeIds = [1, 2];
 
     public $listIds = [
         10273187,

@@ -51,6 +51,24 @@ class NotificationsController extends Controller
         return response()->json($events);
     }
 
+    public function getRelatedVehicle(Request $request, int $id)
+    {
+        $vehicle = $this->apiService->getVehicle($id);
+        if (!$vehicle['success']) return response()->json(['Failed' => 'Bad Request'], 400);
+
+        $tags = collect($this->apiService->getTags()['list'])->keyBy('id');
+        $tracker = collect($this->apiService->getTracker($vehicle['value']['tracker_id']));
+
+        $vehicle['value']['tags'] = collect($tracker['value']['tag_bindings'] ?? [])
+            ->map(fn($tag) => $tags[$tag['tag_id']] ?? null)
+            ->values();
+
+        $driver = collect($this->apiService->getEmployees()['list'])->firstWhere('tracker_id', $vehicle['value']['tracker_id']);
+        $vehicle['value']['driver'] = $driver;
+
+        return response()->json($vehicle);
+    }
+
     public function getGroups(Request $request)
     {
         $groups = collect($this->apiService->getGroups()['list'])->map(fn($group) => [

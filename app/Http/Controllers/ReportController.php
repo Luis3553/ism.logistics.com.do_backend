@@ -242,6 +242,7 @@ class ReportController extends Controller
             $groupId = $firstTracker['group_id'] ?? null;
             $color = $groups[$groupId]['color'] ?? 'cacaca';
             return [
+                'id' => $groupId,
                 'name' => $name,
                 'color' => $color,
                 'trackers' => array_values($trackers->toArray()),
@@ -261,20 +262,40 @@ class ReportController extends Controller
         return response()->json($reports);
     }
 
-    public function processResult(Request $request)
+    public function processResult(Request $request, $id)
     {
         $userId = $this->apiService->getUserInfo()['user_info']['id'] ?? null;
         if (!$userId) return response()->json(['message' => 'User id of the hash provided doesnt exist on the platform.'], 401);
 
-        $reports = Report::where('user_id', $userId)->where('percent', '<', 100)->get();
-        if ($reports->isEmpty()) {
-            return response()->json(['message' => 'No reports are currently being processed for this user.'], 404);
+        $secret = $request->input('secret');
+        $reportData = $request->input('data');
+
+        // if ($secret !== $this->apiService->getSecretKey()) {
+        //     return response()->json(['message' => 'Invalid secret key.'], 403);
+        // }
+        if ($secret !== "xd") {
+            return response()->json(['message' => 'Invalid secret key.'], 403);
         }
 
-        return response()->json($reports);
+        if (!$reportData || !is_array($reportData)) {
+            return response()->json(['message' => 'Invalid report data.'], 400);
+        }
+
+        $report = Report::where('id', $id)->where('user_id', $userId)->first();
+        if (!$report) return response()->json(['message' => 'Report not found.'], 404);
+
+        // Update report with the result
+
+        $jsonDir = storage_path('app/reports');
+        $jsonPath = $jsonDir . "/report_{$id}.json";
+        file_put_contents($jsonPath, json_encode($reportData, JSON_PRETTY_PRINT));
+
+        $report->percent = 100; // Assuming the report is completed
+        $report->file_path = $jsonPath;
+        $report->save();
     }
 
-    // Retrieve, generate, download, updateStatus, getStatus reports methods
+    // Get status of report for polling
     public function getStatusOfReport($id)
     {
         $userId = $this->apiService->getUserInfo()['user_info']['id'] ?? null;
@@ -290,6 +311,7 @@ class ReportController extends Controller
         ]);
     }
 
+    // Update report status | Private Endpoint
     public function updateReportStatus(Request $request, $id)
     {
         $userId = $this->apiService->getUserInfo()['user_info']['id'] ?? null;
@@ -309,6 +331,7 @@ class ReportController extends Controller
         return response()->json(['message' => 'Report status updated successfully.', 'report' => $report]);
     }
 
+    // Retrieve report data
     public function retrieveReport($id)
     {
         $userId = $this->apiService->getUserInfo()['user_info']['id'] ?? null;
@@ -328,6 +351,7 @@ class ReportController extends Controller
         return response()->json(['message' => 'Report file not available. Something happened during the creation or storing process.'], 404);
     }
 
+    // Delete report
     public function deleteReport($id)
     {
         $userId = $this->apiService->getUserInfo()['user_info']['id'] ?? null;
@@ -345,6 +369,7 @@ class ReportController extends Controller
         return response()->json(['message' => 'Report deleted successfully.']);
     }
 
+    // Generate report
     public function generateReport(Request $request)
     {
         $userId = $this->apiService->getUserInfo()['user_info']['id'] ?? null;
@@ -368,7 +393,13 @@ class ReportController extends Controller
         $report = Report::create($payload);
         if (!$report) return response()->json(['message' => 'Failed to create report.'], 500);
 
-        ProcessReportJob::dispatch($report, $this->apiService);
+        $requestData = [
+            'headers' => $request->headers->all(),
+            'cookies' => $request->cookies->all(),
+            'server' => $request->server->all(),
+        ];
+
+        ProcessReportJob::dispatch($report, $requestData, $this->apiService->apiKey);
 
         return response()->json([
             'message' => 'Report is being created. You can check the status later.',
@@ -376,6 +407,7 @@ class ReportController extends Controller
         ], 201);
     }
 
+    // Download Report on format XLS
     public function downloadReport(Request $request, $id)
     {
         $format = $request->query('format');
@@ -401,7 +433,6 @@ class ReportController extends Controller
 
         return response()->json(['message' => 'Report file not available. Something happened during the creation or storing process.'], 404);
     }
-
 
     public function exportGenericReportToExcel(array $reportData)
     {
@@ -562,7 +593,6 @@ class ReportController extends Controller
         return response()->download($tempFile, $filename)->deleteFileAfterSend(true);
     }
 
-
     // VALIDATION METHODS FOR REPORTS PAYLOADS
     public function validateReportPayload(array $payload,  $reportTypeId)
     {
@@ -571,9 +601,25 @@ class ReportController extends Controller
                 return $this->validateOdometerReportPayload($payload);
             case 2:
                 return $this->validateSpeedupReportPayload($payload);
+            case 3:
+                return $this->validateNotificationsReportPayload($payload);
             default:
                 return false; // Invalid report type
         }
+    }
+
+    public function validateNotificationsReportPayload(array $payload)
+    {
+        $hasFromDate = isset($payload['from']) && !empty($payload['from']) &&
+            preg_match('/^\d{4}-\d{2}-\d{2}([T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[\+\-]\d{2}:\d{2})?)?$/', $payload['from']);
+        $hasToDate = isset($payload['to']) && !empty($payload['to']) &&
+            preg_match('/^\d{4}-\d{2}-\d{2}([T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[\+\-]\d{2}:\d{2})?)?$/', $payload['to']);
+        $hasTitle = isset($payload['title']) && !empty($payload['title']);
+        $hasTrackers = (isset($payload['trackers']) && is_array($payload['trackers']) && count($payload['trackers']) > 0) || $payload['trackers'] == "all";
+        $hasNotificationsFilter = (isset($payload['notifications']) && is_array($payload['notifications']) && count($payload['notifications']) > 0) || $payload['notifications'] == "all";
+        $hasGroups = (isset($payload['groups']) && is_array($payload['groups']) && count($payload['groups']) > 0) || $payload['groups'] == "all";
+
+        return $hasFromDate && $hasToDate && $hasTrackers && $hasTitle && $hasNotificationsFilter && $hasGroups;
     }
 
     public function validateOdometerReportPayload(array $payload)

@@ -67,7 +67,7 @@ Route::prefix('reports')->group(function () {
 
     // private endpoints
     Route::put('/{id}/status/update', [ReportController::class, 'updateReportStatus']);
-    Route::put('/{id}/result', [ReportController::class, 'updateReport']);
+    Route::put('/{id}/result', [ReportController::class, 'processResult']);
 });
 
 Route::prefix('notifications')->group(function () {

@@ -2,30 +2,37 @@
 
 namespace App\Jobs;
 
+use App\Http\Controllers\NotificationsController;
 use App\Http\Controllers\Service\ProGpsApiService;
 use App\Models\Report;
 use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 use Symfony\Component\Process\Process;
+use Illuminate\Http\Request;
+use App\Http\Controllers\TargetController;
+use App\Services\NotificationService;
 
 class ProcessReportJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public $report;
+    public $requestData;
+    public $hash;
     /**
      * Create a new job instance.
      *
      * @return void
      */
-    public function __construct(Report $report, protected ProGpsApiService $apiService)
+    public function __construct(Report $report, $requestData, $hash)
     {
         $this->report = $report;
+        $this->requestData = $requestData;
+        $this->hash = $hash;
     }
 
     /**
@@ -44,25 +51,155 @@ class ProcessReportJob implements ShouldQueue
             case 2:
                 $this->generateSpeedupReport();
                 break;
+            case 3:
+                $this->generateEventsReport();
             default:
                 return false;
         }
     }
 
+    public function generateEventsReport()
+    {
+        try {
+            $payload = $this->report->report_payload;
+
+            // 1. Merge in the new query values
+            $params = [
+                'from' => $payload['from'],
+                'to' => $payload['to'],
+                'trackers' => $payload['trackers'],
+                'groups' => $payload['groups'],
+                'notifications' => $payload['notifications'],
+                'groupBy' => $payload['groupBy'],
+            ];
+
+            // 3. Call service to get notifications
+            $notificationService = new NotificationService($this->hash);
+            $result = $notificationService->getNotifications($params);
+
+            // --------------------------------------------------------------------------
+            $groupByLabel = "";
+
+            switch ($params['groupBy']) {
+                case 'trackers':
+                    $groupByLabel = 'objetos';
+                    break;
+                case 'groups':
+                    $groupByLabel = 'grupos';
+                    break;
+                case 'notifications':
+                    $groupByLabel = 'notificaciones';
+                    break;
+            }
+
+            $trackerNames = collect($result)->flatMap(function ($group) {
+                return collect($group['notifications'])->flatMap(function ($notification) {
+                    return collect($notification['trackers'])->pluck('name');
+                });
+            });
+
+            $uniqueTrackerCount = $trackerNames->unique()->count();
+            $totalEvents = $trackerNames->count();
+
+            $reportData = [
+                'title' => "Informe de alertas - Por $groupByLabel",
+                'date' => 'Desde ' . date('d/m/Y h:i A', strtotime($params['from'])) . ' hasta ' . date('d/m/Y h:i A', strtotime($params['to'])),
+                'summary' => [
+                    'title' => 'Resumen General',
+                    'color' => '#eeece1',
+                    'rows' => [
+                        [
+                            'title' => 'Total de objetos',
+                            'value' => $uniqueTrackerCount
+                        ],
+                        [
+                            'title' => 'Total de eventos',
+                            'value' => $totalEvents
+                        ],
+                    ],
+                ],
+                'data' => collect($result)->map(function ($group) {
+                    $groupLabel = ($group['name'] ?? 'Grupo') . " (" . count($group['notifications'] ?? []) . " Alertas)";
+
+                    return [
+                        'groupLabel' => $groupLabel,
+                        'bgColor' => '#eeece1',
+                        'children' => collect($group['notifications'] ?? [])->map(function ($notification) {
+                            $notificationLabel = $notification['name'];
+
+                            return [
+                                'groupLabel' => $notificationLabel,
+                                'bgColor' => '#f4f4f4',
+                                'content' => [
+                                    'columns' => [
+                                        ['name' => 'Nombre del objeto', 'key' => 'name'],
+                                        ['name' => 'Inicio', 'key' => 'start_date'],
+                                        ['name' => 'Fin', 'key' => 'end_date'],
+                                        ['name' => 'Duración', 'key' => 'time'],
+                                        ['name' => 'Dirección', 'key' => 'address'],
+                                        ['name' => 'Emergencia', 'key' => 'emergency'],
+                                    ],
+                                    'rows' => collect($notification['trackers'] ?? [])->map(function ($event) {
+                                        return [
+                                            'name' => $event['name'] ?? '-',
+                                            'start_date' => $event['start_date'] ?? '-',
+                                            'end_date' => $event['end_date'] ?? '-',
+                                            'time' => $event['time'] ?? '-',
+                                            'address' => $event['address'] ?? '-',
+                                            'emergency' => $event['emergency'] ? 'Sí' : 'No',
+                                        ];
+                                    })->toArray(),
+                                ],
+                            ];
+                        })->toArray(),
+                    ];
+                })->toArray(),
+                'columns_dimensions_for_excel_file' => [
+                    'A' => 43,
+                    'B' => 20,
+                    'C' => 16,
+                    'D' => 19,
+                    'E' => 23,
+                ],
+            ];
+
+            // 4. Save report
+            $jsonDir = storage_path('app/reports');
+            $jsonPath = $jsonDir . "/report_{$this->report->id}.json";
+            $this->report->file_path = $jsonPath;
+            file_put_contents($jsonPath, json_encode($reportData, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+            $this->report->percent = 100;
+        } catch (\Throwable $e) {
+            Log::error('Error generating events report: ' . $e->getMessage(), [
+                'exception' => $e,
+                'report_id' => $this->report->id ?? null,
+            ]);
+            $this->report->percent = -1;
+        } finally {
+            $this->report->save();
+        }
+    }
+
+
     public function generateOdometerReport()
     {
         try {
+            $apiService = new ProGpsApiService($this->hash);
             $date = $this->report->report_payload['date'];
 
             // Fetch & Filter data
-            $trackers = collect($this->apiService->getTrackers()['list']);
+            $trackers = collect($apiService->getTrackers()['list'])->filter(function ($tracker) {
+                return in_array($tracker['id'], $this->report->report_payload['trackers']);
+            });
             $trackersIds = $trackers->pluck('id');
-            $trackersStates = $this->apiService->getTrackersStates($trackersIds)['states'];
+
+            $trackersStates = $apiService->getTrackersStates($trackersIds)['states'];
+            // Filter out trackers that are just registered
             $trackers = $trackers->filter(function ($tracker) use ($trackersStates) {
                 return $trackersStates[$tracker['id']]['connection_status'] !== 'just_registered';
             });
 
-            $groups = collect($this->apiService->getGroups()['list'])->keyBy('id');
+            $groups = collect($apiService->getGroups()['list'])->keyBy('id');
 
             $GroupedTrackers = $trackers->groupBy(function ($tracker) use ($groups) {
                 return $groups[$tracker['group_id']]['title'] ?? 'Grupo Principal';
@@ -83,8 +220,8 @@ class ProcessReportJob implements ShouldQueue
             $this->report->percent = 33;
             $this->report->save();
 
-            $OdometerReport = $this->apiService->getOdometersOfListOfTrackersInPeriodRange($trackersIds, $date);
-            $vehicles = collect($this->apiService->getVehicles()['list'])
+            $OdometerReport = $apiService->getOdometersOfListOfTrackersInPeriodRange($trackersIds, $date);
+            $vehicles = collect($apiService->getVehicles()['list'])
                 ->where('tracker_id', '!=', null)
                 ->keyBy('tracker_id');
 
@@ -95,7 +232,7 @@ class ProcessReportJob implements ShouldQueue
             // --------------------------------------------------------------------------
             $reportData = [
                 'title' => 'Informe de Odómetro',
-                'date' => 'Fecha: ' . now()->format('d/m/Y h:i A'),
+                'date' => 'Fecha: ' . date('d/m/Y h:i A', strtotime($date)),
                 'summary' => [
                     'title' => 'Resumen General',
                     'color' => '#eeece1',
@@ -164,9 +301,6 @@ class ProcessReportJob implements ShouldQueue
 
             // Save JSON output locally
             $jsonDir = storage_path('app/reports');
-            if (!is_dir($jsonDir)) {
-                mkdir($jsonDir, 0755, true);
-            }
             $jsonPath = $jsonDir . "/report_{$this->report->id}.json";
             file_put_contents($jsonPath, json_encode($reportData, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
 
@@ -177,6 +311,7 @@ class ProcessReportJob implements ShouldQueue
                 'exception' => $e,
                 'report_id' => $this->report->id ?? null,
             ]);
+            $this->report->percent = -1;
         } finally {
             $this->report->percent = 100;
             $this->report->save();
@@ -185,9 +320,8 @@ class ProcessReportJob implements ShouldQueue
 
     public function generateSpeedupReport()
     {
-        $hash = $this->apiService->apiKey;
         $reportId = $this->report->id;
-        $ids = $this->report->report_payload['trackers'];
+        $trackerIds = $this->report->report_payload['trackers'];
         $fromDate = $this->report->report_payload['from'];
         $toDate = $this->report->report_payload['to'];
         $allowedSpeed = $this->report->report_payload['allowed_speed'];
@@ -198,11 +332,11 @@ class ProcessReportJob implements ShouldQueue
             'node',
             $nodeScript,
             '--hash',
-            $hash,
+            $this->hash,
             '--report_id',
             $reportId,
             '--ids',
-            implode(',', $ids),
+            implode(',', $trackerIds),
             '--from',
             $fromDate,
             '--to',
@@ -214,13 +348,7 @@ class ProcessReportJob implements ShouldQueue
         ];
 
         $process = new Process($cmd);
+        $process->setTimeout(600); // Set a timeout of 10 minutes
         $process->run();
-
-        // $jsonDir = storage_path('app/reports');
-        // $jsonPath = $jsonDir . "/report_{$this->report->id}.json";
-
-        // file_put_contents($jsonPath, json_encode($results, JSON_PRETTY_PRINT));
-        // $this->report->file_path = $jsonPath;
-        // $this->report->save();
     }
 }

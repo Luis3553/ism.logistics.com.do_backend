@@ -2,7 +2,6 @@ import pLimit from "p-limit";
 import { fetchAllCsvs } from "./fetchAllCsv.js";
 import { runWorker } from "./worker.js";
 import minimist from "minimist";
-import { logToLaravel } from "./utils/logToLaravel.js";
 import { createTableStructureForSpeedupReport } from "./createTableStructureForSpeedupReport.js";
 import fetchAddresses from "./utils/geocoder.js";
 import updateProgress from "./utils/updateProgress.js";
@@ -27,7 +26,6 @@ const minDuration = argv.min_duration;
 
 (async () => {
     try {
-        const start = Date.now();
         const [cvs, trackersInfo, groups] = await Promise.all([fetchAllCsvs(trackerIds, fromDate, toDate, hash), getTrackers(hash), getTrackerGroups(hash)]);
 
         await updateProgress(reportId, 33, hash);
@@ -49,8 +47,7 @@ const minDuration = argv.min_duration;
         await sendResult(reportId, result, hash);
         process.exit(0);
     } catch (error) {
-        logToLaravel(`Error in main process: ${error.message}`);
-        await updateProgress(reportId, -1, hash);
+        console.error(error);
         process.exit(1);
     }
 })();

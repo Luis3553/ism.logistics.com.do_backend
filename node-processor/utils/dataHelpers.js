@@ -1,5 +1,4 @@
 import axios from "axios";
-import { logToLaravel } from "./logToLaravel.js";
 
 export async function getTrackerGroups(hash) {
     try {
@@ -17,7 +16,7 @@ export async function getTrackerGroups(hash) {
 
         return response.data.list;
     } catch (error) {
-        logToLaravel(`Error fetching tracker groups: ${error}`);
+        throw new Error(`Error fetching tracker groups: ${error.message}`);
     }
 }
 
@@ -37,6 +36,6 @@ export async function getTrackers(hash) {
 
         return response.data.list;
     } catch (error) {
-        logToLaravel(`Error fetching trackers for group ${groupId}: ${error}`);
+        throw new Error(`Error fetching trackers: ${error.message}`);
     }
 }

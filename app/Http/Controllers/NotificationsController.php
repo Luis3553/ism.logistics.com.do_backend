@@ -41,6 +41,10 @@ class NotificationsController extends Controller
     {
         $events = collect($this->apiService->getEventTypes()['list']);
 
+        $events = $events->filter(function ($event) {
+            return !in_array($event['type'], ['speedup', 'driver_assistance']);
+        })->values();
+
         $events = $events->map(function ($event) {
             return [
                 'value' => $event['type'] . '$' . $event['id'],

@@ -1,6 +1,5 @@
 import { parse } from "csv-parse/sync";
 import { formatDurationHMS, formatTo12HourFull, getDurationInSeconds } from "./utils/timeAndDateFormaters.js";
-import { logToLaravel } from "./utils/logToLaravel.js";
 
 export async function detectSpeedBurstsFromCsv(csvText, threshold, min_duration) {
     try {

@@ -20,7 +20,7 @@ class NotificationService
     public function getNotifications($params)
     {
         // Step 0: Parameters
-        $groupBy = $params['groupBy'] ?? ''; // groups / notifications / trackers
+        $groupBy = $params['groupBy'] ?? 'groups'; // groups / notifications / trackers
         $trackersFilter = isset($params['trackers']) ? (is_array($params['trackers']) ? $params['trackers'] : explode(',', $params['trackers'])) : [];
         $groupsFilter = isset($params['groups']) ? (is_array($params['groups']) ? $params['groups'] : explode(',', $params['groups'])) : [];
         $notificationsFilter = isset($params['notifications']) ? (is_array($params['notifications']) ? $params['notifications'] : explode(',', $params['notifications'])) : [];
@@ -51,7 +51,7 @@ class NotificationService
             "inoutzone" => ["outzone", "inzone"],
             "track_change" => ["track_start", "track_end"],
             "over_speed_reported" => ["over_speed_reported"],
-            "speedup" => ["speedup"],
+            // "speedup" => ["speedup"], // not gonna be used for now, to see details about speedup generate a report
             "route" => ["outroute"],
             "excessive_driving" => ["excessive_driving_end", "excessive_driving_start"],
             "excessive_parking" => ["excessive_parking_finished", "excessive_parking"],
@@ -61,7 +61,7 @@ class NotificationService
             "idling_soft" => ["idle_end", "idle_start"],
             "fuel_level_leap" => ["drain", "fueling"],
             "harsh_driving" => ["harsh_driving"],
-            // "driver_assistance" => ["driver_assistance"],
+            // "driver_assistance" => ["driver_assistance"], // unknown events types
             "auto_geofence" => ["auto_geofence_out"],
             "autocontrol" => ["autocontrol"],
             "crash_alarm" => ["crash_alarm"],
@@ -147,13 +147,13 @@ class NotificationService
         $selfContained = [
             "state_field_control",
             "over_speed_reported",
-            "speedup",
+            // "speedup",
             "outroute",
             "task_status_change",
             "work_status_change",
             "idling",
             "harsh_driving",
-            "driver_assistance",
+            // "driver_assistance",
             "auto_geofence_out",
             "autocontrol",
             "crash_alarm",
@@ -182,7 +182,7 @@ class NotificationService
         // Step 6: Group and respond
         return match ($groupBy) {
             'notifications' => $this->groupByNotification($sessions, $trackersMap, $groupsMap, $rulesMap, $groupsFilter, $notificationsIdsFilter),
-            'tracker' => $this->groupByTracker($sessions, $trackersMap, $rulesMap, $notificationsIdsFilter),
+            'trackers' => $this->groupByTracker($sessions, $trackersMap, $rulesMap, $notificationsIdsFilter),
             default => $this->groupByGroup($sessions, $trackersMap, $groupsMap, $rulesMap, $groupsFilter, $notificationsIdsFilter)
         };
     }
@@ -415,9 +415,7 @@ class NotificationService
     {
         set_time_limit(5000); // 5 minutes
 
-        $ids = $this->apiService->listIds;
-
-        $idsString = implode(' ', $ids);
+        $idsString = implode(' ', []);
         $venvPython = escapeshellarg(base_path('python-processor/venv/Scripts/python.exe'));
         $script = escapeshellarg(base_path('python-processor/main.py'));
         $cmd = "$venvPython $script $idsString";

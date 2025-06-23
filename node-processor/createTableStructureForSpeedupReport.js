@@ -1,4 +1,3 @@
-import { logToLaravel } from "./utils/logToLaravel.js";
 import { formatHumanReadableDuration } from "./utils/timeAndDateFormaters.js";
 import { format } from "date-fns";
 
@@ -37,7 +36,7 @@ export function createTableStructureForSpeedupReport({ outputs, allowedSpeed, mi
             date: `Desde ${format(new Date(fromDate), "yyyy/MM/dd hh:mm:ss a")} hasta ${format(new Date(toDate), "yyyy/MM/dd hh:mm:ss a")}`,
             summary: {
                 title: "Resumen General",
-                color: "#eeece1",
+                color: "#EFEFEF",
                 rows: [
                     {
                         title: "Total Eventos",
@@ -66,8 +65,9 @@ export function createTableStructureForSpeedupReport({ outputs, allowedSpeed, mi
 
                 return {
                     groupLabel: `${groupTitle} (${events.length} Vehículos) (${totalEvents} Eventos)`,
-                    bgColor: "#eeece1",
+                    bgColor: "#C5D9F1",
                     content: {
+                        bgColor: "#f2f2f2",
                         columns: [
                             { name: "Nombre del objeto", key: "tracker_name" },
                             { name: "Tiempo Inicio", key: "start_time" },

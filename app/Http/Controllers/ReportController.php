@@ -17,6 +17,36 @@ class ReportController extends Controller
 {
     public function __construct(protected ProGpsApiService $apiService) {}
 
+    // Get employees for the panel
+    public function getEmployees(Request $request)
+    {
+        $departments = collect($this->apiService->getDepartments()['list'])->keyBy('id');
+        $employees = collect($this->apiService->getEmployees()['list']);
+
+        $groupedEmployees = $employees->groupBy(function ($employee) use ($departments) {
+            return $departments[$employee['department_id']]['label'] ?? 'Sin Departamento';
+        })->sortByDesc(function ($employees) {
+            return count($employees);
+        })->map(function ($employees, $name) use ($departments) {
+            $firstEmployee = $employees->first();
+            $departmentId = $firstEmployee['department_id'] ?? null;
+            $color = 'cacaca';
+            return [
+                'id' => $departmentId,
+                'name' => $name,
+                'color' => $color,
+                'employees' => array_values($employees->map(function ($employee) {
+                    return [
+                        'id' => $employee['id'],
+                        'full_name' => $employee['first_name'] . " " . $employee['middle_name'] . " " . $employee['last_name'],
+                    ];
+                })->toArray()),
+            ];
+        })->values()->toArray();
+
+        return response()->json($groupedEmployees);
+    }
+
     // Get grouped trackers for the panel
     public function getGroupedTrackers(Request $request)
     {
@@ -389,9 +419,21 @@ class ReportController extends Controller
                 return $this->validateNotificationsReportPayload($payload);
             case 4:
                 return $this->validateVehicleInsurancePoliceExpirationReportPayload($payload);
+            case 5:
+                return $this->validateDriverLicenseExpirationReportPayload($payload);
             default:
                 return false;
         }
+    }
+
+    public function validateDriverLicenseExpirationReportPayload(array $payload)
+    {
+        $hasFromDate = (isset($payload['from']) && $this->isValidIso8601($payload['from'])) || $payload['from'] == null;
+        $hasToDate = (isset($payload['to']) && $this->isValidIso8601($payload['to'])) || $payload['to'] == null;
+        $hasTrackers = isset($payload['employees']) && is_array($payload['employees']) && count($payload['employees']) > 0;
+        $hasTitle = isset($payload['title']) && !empty($payload['title']);
+
+        return $hasFromDate && $hasToDate && $hasTrackers && $hasTitle;
     }
 
     public function validateVehicleInsurancePoliceExpirationReportPayload(array $payload)

@@ -223,5 +223,5 @@ class ProGpsApiService
         return $result;
     }
 
-    public $validReportTypeIds = [1, 2, 3, 4];
+    public $validReportTypeIds = [1, 2, 3, 4, 5];
 }

@@ -45,6 +45,7 @@ Route::prefix('user')->group(function () {
 
 Route::prefix('reports')->group(function () {
     Route::get('panel/trackers', [ReportController::class, 'getGroupedTrackers']);
+    Route::get('panel/employees', [ReportController::class, 'getEmployees']);
 
     Route::get('list', [ReportController::class, 'getListOfUsersGeneratedReports']);
     Route::post('generate', [ReportController::class, 'generateReport']);

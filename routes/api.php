@@ -6,6 +6,7 @@ use App\Http\Controllers\GeofenceConfigController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\NotificationsController;
 use App\Http\Controllers\ReportController;
+use App\Http\Controllers\ScheduleRouteTaskController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('home')->group(function () {
@@ -58,6 +59,16 @@ Route::prefix('reports')->group(function () {
     // private endpoints
     Route::put('/{id}/status/update', [ReportController::class, 'updateReportStatus']);
     Route::put('/{id}/result', [ReportController::class, 'processResult']);
+});
+
+Route::prefix('tasks')->group(function () {
+    Route::get('config/list', [ScheduleRouteTaskController::class, 'getConfigsForScheduleTasks']);
+    Route::delete('config/{id}/delete', [ScheduleRouteTaskController::class, 'deleteScheduleTask']);
+
+    Route::get('schedule/list', [ScheduleRouteTaskController::class, 'getScheduleTaskList']);
+
+    Route::post('schedule/create', [ScheduleRouteTaskController::class, 'createScheduleTask']);
+    Route::put('schedule/{id}/update', [ScheduleRouteTaskController::class, 'updateScheduleTask']);
 });
 
 Route::prefix('notifications')->group(function () {

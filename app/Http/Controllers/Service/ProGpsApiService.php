@@ -47,6 +47,37 @@ class ProGpsApiService
         return $responses;
     }
 
+    public function createRoute($taskData)
+    {
+        $response = $this->post('task/route/create', $taskData);
+        return $response->json() ?? [];
+    }
+
+    public function createTask($taskData)
+    {
+        $response = $this->post('task/create', $taskData);
+        return $response->json() ?? [];
+    }
+
+    public function getScheduleTaskData($id): array
+    {
+        $response = $this->post('/task/schedule/read', [
+            'id' => $id,
+        ]);
+        return $response->json() ?? [];
+    }
+
+    public function getScheduleTasks($params = null): array
+    {
+        $response = $this->post('task/schedule/list', $params);
+        return $response->json() ?? [];
+    }
+
+    public function getVehiclesMaintenance(): array
+    {
+        $response = $this->post('vehicle/maintenance/list');
+        return $response->json() ?? [];
+    }
 
     public function getVehicles(): array
     {

@@ -17,13 +17,9 @@ class User extends Authenticatable
      * @var array<int, string>
      */
     protected $fillable = [
+        'user_id',
         'hash',
     ];
-
-    public function geofenceConfigurations()
-    {
-        return $this->hasMany(GeofenceConfiguration::class);
-    }
 
     protected $hidden = [
         'created_at',

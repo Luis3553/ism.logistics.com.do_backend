@@ -21,6 +21,7 @@ class ScheduleRouteTaskValidator
             'frequency_value' => 'required|integer|min:1',
             'days_of_week' => 'required|array',
             'days_of_week.*' => 'integer|between:1,7',
+            'weekday_ordinal' => 'nullable|integer|between:1,4',
             'start_date' => 'required|date',
             'is_active' => 'boolean'
         ], [
@@ -39,6 +40,8 @@ class ScheduleRouteTaskValidator
             'days_of_week.*.between' => 'Each day of week must be between 1 and 7.',
             'start_date.required' => 'The start date is required.',
             'start_date.date_format' => 'The start date must be in the format ISO8601',
+            'weekday_ordinal.integer' => 'The weekday ordinal must be an integer.',
+            'weekday_ordinal.between' => 'The weekday ordinal must be between 1 and 4.',
             'is_active.boolean' => 'The is_active field must be true or false.',
         ]);
     }

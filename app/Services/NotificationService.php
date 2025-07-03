@@ -2,7 +2,7 @@
 
 namespace App\Services;
 
-use App\Http\Controllers\Service\ProGpsApiService;
+use App\Services\ProGpsApiService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Symfony\Component\Process\Process;

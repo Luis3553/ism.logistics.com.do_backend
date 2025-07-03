@@ -3,7 +3,7 @@
 namespace App\Jobs;
 
 use App\Http\Controllers\NotificationsController;
-use App\Http\Controllers\Service\ProGpsApiService;
+use App\Services\ProGpsApiService;
 use App\Models\Report;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;

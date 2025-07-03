@@ -18,6 +18,7 @@ class ScheduleRouteTask extends Model
         'user_hash',
         'frequency',
         'frequency_value',
+        'weekday_ordinal',
         'days_of_week',
         'is_valid',
         'is_active',

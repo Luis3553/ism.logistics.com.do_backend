@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Controllers\Service\ProGpsApiService;
+use App\Services\ProGpsApiService;
 use App\Models\ScheduleRouteTask;
 use App\Validators\ScheduleRouteTaskValidator;
 use Carbon\Carbon;
@@ -15,8 +15,7 @@ class ScheduleRouteTaskController extends Controller
 
     public function getScheduleTaskList(Request $request)
     {
-        $userId = $this->apiService->getUserInfo()['user_info']['id'] ?? null;
-        if (!$userId) return response()->json(['message' => 'User id of the hash provided doesnt exist on the platform.'], 401);
+        $userId = $request->attributes->get('user')->user_id;
 
         $alreadyExistConfigs = ScheduleRouteTask::where('user_id', $userId)
             ->pluck('task_id')
@@ -42,8 +41,7 @@ class ScheduleRouteTaskController extends Controller
         $tasksMap = collect($this->apiService->getScheduleTasks(['types' => ['task', 'route']])['list'])->keyBy('id');
         $employeesMap = collect($this->apiService->getEmployees()['list'])->keyBy('id');
 
-        $userId = $this->apiService->getUserInfo()['user_info']['id'] ?? null;
-        if (!$userId) return response()->json(['message' => 'User id of the hash provided doesnt exist on the platform.'], 401);
+        $userId = $request->attributes->get('user')->user_id;
 
         $tasks = ScheduleRouteTask::where('user_id', $userId)
             ->whereIn('tracker_id', $trackersIds)
@@ -77,17 +75,17 @@ class ScheduleRouteTaskController extends Controller
         $validator = ScheduleRouteTaskValidator::validate($request->all());
         if ($validator->fails()) return response()->json(['errors' => $validator->errors()], 422);
 
-        $userId = $this->apiService->getUserInfo()['user_info']['id'] ?? null;
-        if (!$userId) return response()->json(['message' => 'User id of the hash provided doesnt exist on the platform.'], 401);
+        $user = $request->attributes->get('user');
 
         $task = ScheduleRouteTask::create([
-            'user_id' => $userId,
+            'user_id' => $user->user_id,
             'task_id' => $request->input('task_id'),
             'tracker_id' => $request->input('tracker_id'),
-            'user_hash' => $this->apiService->apiKey,
+            'user_hash' => $user->hash,
             'frequency' => $request->input('frequency'),
             'frequency_value' => $request->input('frequency_value'),
             'days_of_week' => $request->input('days_of_week'),
+            'weekday_ordinal' => $request->input('weekday_ordinal', null),
             'start_date' => Carbon::parse($request->input('start_date'))->format('Y-m-d'),
         ]);
 
@@ -98,8 +96,7 @@ class ScheduleRouteTaskController extends Controller
 
     public function deleteScheduleTask(Request $request, $id)
     {
-        $userId = $this->apiService->getUserInfo()['user_info']['id'] ?? null;
-        if (!$userId) return response()->json(['message' => 'User id of the hash provided doesnt exist on the platform.'], 401);
+        $userId = $request->attributes->get('user')->user_id;
 
         $task = ScheduleRouteTask::where('id', $id)
             ->where('user_id', $userId)
@@ -117,8 +114,7 @@ class ScheduleRouteTaskController extends Controller
         $validator = ScheduleRouteTaskValidator::validate($request->all());
         if ($validator->fails()) return response()->json(['errors' => $validator->errors()], 422);
 
-        $userId = $this->apiService->getUserInfo()['user_info']['id'] ?? null;
-        if (!$userId) return response()->json(['message' => 'User id of the hash provided doesnt exist on the platform.'], 401);
+        $userId = $request->attributes->get('user')->user_id;
 
         $task = ScheduleRouteTask::where('id', $id)
             ->where('user_id', $userId)

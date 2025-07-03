@@ -2,7 +2,7 @@
 
 namespace App\Console\Commands;
 
-use App\Http\Controllers\Service\ProGpsApiService;
+use App\Services\ProGpsApiService;
 use App\Models\ScheduleRouteTask;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
@@ -37,7 +37,7 @@ class generateTaskForTheDay extends Command
             $today = Carbon::today();
             $todayWeekday = $today->dayOfWeek;
 
-            $tasksConfigs = ScheduleRouteTask::where('is_valid', true)->get();
+            $tasksConfigs = ScheduleRouteTask::where('is_valid', true)->where('is_active', true)->get();
 
             foreach ($tasksConfigs as $taskConfig) {
                 $apiService = new ProGpsApiService($taskConfig->user_hash);

@@ -2,8 +2,9 @@
 
 namespace App\Providers;
 
-use App\Http\Controllers\Service\ProGpsApiService;
+use App\Services\ProGpsApiService;
 use Illuminate\Support\ServiceProvider;
+use RuntimeException;
 
 class ProGpsServiceProvider extends ServiceProvider
 {
@@ -16,13 +17,9 @@ class ProGpsServiceProvider extends ServiceProvider
     {
         $this->app->bind(ProGpsApiService::class, function ($app) {
             $request = $app['request'];
-            $hash = $request->header('X-Hash-Token');
-
-            if (!$hash) {
-                abort(400, 'Missing X-Hash-Token header');
-            }
-
-            return new ProGpsApiService($hash);
+            $user = $request->attributes->get('user') ?? null;
+            if (!$user || !$user->hash) throw new RuntimeException('Missing user hash.');
+            return new ProGpsApiService($user->hash);
         });
     }
 

@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Controllers\Service\ProGpsApiService;
+use App\Services\ProGpsApiService;
 use App\Models\GeofenceConfiguration;
 use App\Models\User;
 use Illuminate\Http\Request;

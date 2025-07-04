@@ -4,7 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Services\ProGpsApiService;
 use App\Models\ScheduleRouteTask;
-use App\Validators\ScheduleRouteTaskValidator;
+use App\ScheduleRouteTask\Validators\ScheduleRouteTaskValidator;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -61,6 +61,7 @@ class ScheduleRouteTaskController extends Controller
                 'frequency' => $task->frequency,
                 'frequency_value' => $task->frequency_value,
                 'days_of_week' => $task->days_of_week,
+                'weekday_ordinal' => $task->weekday_ordinal,
                 'is_valid' => $task->is_valid,
                 'is_active' => $task->is_active,
                 'start_date' => $task->start_date,

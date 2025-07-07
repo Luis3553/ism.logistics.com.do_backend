@@ -1,6 +1,6 @@
 <?php
 
-namespace App\ScheduleRouteTask\Validators;
+namespace App\Validators\ScheduleRouteTask;
 
 use Illuminate\Contracts\Validation\Validator;
 

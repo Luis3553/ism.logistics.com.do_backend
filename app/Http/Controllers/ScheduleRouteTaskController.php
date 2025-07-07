@@ -2,9 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Resources\ScheduleRouteTaskResource;
 use App\Services\ProGpsApiService;
 use App\Models\ScheduleRouteTask;
-use App\ScheduleRouteTask\Validators\ScheduleRouteTaskValidator;
+use App\Validators\ScheduleRouteTask\ScheduleRouteTaskValidator;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -21,14 +22,19 @@ class ScheduleRouteTaskController extends Controller
             ->pluck('task_id')
             ->toArray();
 
-        $tasks = collect($this->apiService->getScheduleTasks(['types' => ['task', 'route']])['list'])->filter(function ($task) use ($alreadyExistConfigs) {
-            return !in_array($task['id'], $alreadyExistConfigs);
-        })->map(function ($task) {
-            return [
-                'value' => $task['id'],
-                'label' => $task['label'],
-            ];
-        })->values()->toArray();
+        $tasks = collect($this->apiService->getScheduleTasks(['types' => ['task', 'route']])['list'])
+            ->filter(function ($task) use ($alreadyExistConfigs) {
+                return !in_array($task['id'], $alreadyExistConfigs);
+            })
+            ->sortBy('created_at') // Correct method for collections
+            ->map(function ($task) {
+                return [
+                    'value' => $task['id'],
+                    'label' => $task['label'],
+                ];
+            })
+            ->values()
+            ->toArray();
 
         return response()->json(['list' => $tasks, 'success' => true], 200);
     }
@@ -36,45 +42,38 @@ class ScheduleRouteTaskController extends Controller
     public function getConfigsForScheduleTasks(Request $request)
     {
         $trackersIds = json_decode($request->query('trackers', []));
-
-        $trackersMap = collect($this->apiService->getTrackers()['list'])->keyBy('id');
-        $tasksMap = collect($this->apiService->getScheduleTasks(['types' => ['task', 'route']])['list'])->keyBy('id');
-        $employeesMap = collect($this->apiService->getEmployees()['list'])->keyBy('id');
-
         $userId = $request->attributes->get('user')->user_id;
 
         $tasks = ScheduleRouteTask::where('user_id', $userId)
             ->whereIn('tracker_id', $trackersIds)
             ->get();
 
-        $tasks = $tasks->map(function ($task) use ($trackersMap, $employeesMap, $tasksMap) {
-            $employee = $employeesMap[$task->tracker_id] ?? null;
-            $employeeName = $employee ? "{$employee['first_name']} {$employee['middle_name']} {$employee['last_name']}" : 'N/A';
+        $responses = $this->apiService->fetchBatchRequests([
+            ['key' => 'trackers'],
+            ['key' => 'schedule_list', 'params' => ['types' => ['task', 'route']]],
+            ['key' => 'employees'],
+        ]);
 
-            return [
-                'id' => $task->id,
-                'label' => $tasksMap[$task->task_id]['label'],
-                'task_id' => $task->task_id,
-                'tracker_id' => $task->tracker_id,
-                'tracker' => $trackersMap[$task->tracker_id]['label'],
-                'employee' => $employeeName,
-                'frequency' => $task->frequency,
-                'frequency_value' => $task->frequency_value,
-                'days_of_week' => $task->days_of_week,
-                'weekday_ordinal' => $task->weekday_ordinal,
-                'is_valid' => $task->is_valid,
-                'is_active' => $task->is_active,
-                'start_date' => $task->start_date,
-            ];
-        });
+        $sharedData = [
+            'trackersMap' => collect($responses['trackers']['list'])->keyBy('id')->toArray(),
+            'tasksMap' => collect($responses['schedule_list']['list'])->keyBy('id')->toArray(),
+            'employeesMap' => collect($responses['employees']['list'])->keyBy('id')->toArray(),
+        ];
 
-        return response()->json(['list' => $tasks, 'success' => true], 200);
+        $resources = collect($tasks)->map(fn($task) => new ScheduleRouteTaskResource($task, $sharedData));
+
+        return response()->json([
+            'list' => $resources,
+            'success' => true,
+        ]);
     }
 
     public function createScheduleTask(Request $request)
     {
         $validator = ScheduleRouteTaskValidator::validate($request->all());
-        if ($validator->fails()) return response()->json(['errors' => $validator->errors()], 422);
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
 
         $user = $request->attributes->get('user');
 
@@ -82,7 +81,6 @@ class ScheduleRouteTaskController extends Controller
             'user_id' => $user->user_id,
             'task_id' => $request->input('task_id'),
             'tracker_id' => $request->input('tracker_id'),
-            'user_hash' => $user->hash,
             'frequency' => $request->input('frequency'),
             'frequency_value' => $request->input('frequency_value'),
             'days_of_week' => $request->input('days_of_week'),
@@ -92,7 +90,10 @@ class ScheduleRouteTaskController extends Controller
 
         if (!$task) return response()->json(['message' => 'Failed to create task'], 500);
 
-        return response()->json(['message' => 'Task created successfully', 'data' => $task], 201);
+        return response()->json([
+            'message' => 'Task created successfully',
+            'data' => new ScheduleRouteTaskResource($task),
+        ], 201);
     }
 
     public function deleteScheduleTask(Request $request, $id)

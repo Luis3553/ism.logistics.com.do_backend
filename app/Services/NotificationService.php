@@ -30,9 +30,9 @@ class NotificationService
 
         // Step 1: Fetch API data
         $responses = $this->apiService->fetchBatchRequests([
-            'trackers' => 'tracker/list',
-            'groups' => 'tracker/group/list',
-            'rules' => 'tracker/rule/list'
+            ['key' => 'trackers'],
+            ['key' => 'groups'],
+            ['key' => 'event_types'],
         ]);
 
         $trackers = $responses['trackers']['list'];
@@ -42,7 +42,7 @@ class NotificationService
                 return in_array($tracker['group_id'], $groupsFilter);
             })->values()->toArray();
         }
-        $rules = $responses['rules']['list'];
+        $rules = $responses['event_types']['list'];
 
         $helper = [
             "battery_off" => ["battery_off"],

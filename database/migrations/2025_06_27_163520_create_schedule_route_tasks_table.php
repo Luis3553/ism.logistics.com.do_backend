@@ -16,9 +16,8 @@ return new class extends Migration
         Schema::create('schedule_route_tasks', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('task_id')->unique();
-            $table->unsignedBigInteger('user_id');
+            $table->foreignId('user_id')->constrained('users', 'user_id')->onDelete('cascade');
             $table->unsignedBigInteger('tracker_id');
-            $table->string('user_hash');
             $table->enum('frequency', ['every_x_weeks', 'every_x_months']);
             $table->unsignedInteger('frequency_value');
             $table->json('days_of_week');

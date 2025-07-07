@@ -18,50 +18,53 @@ class ProGpsApiService
         $this->baseUrl = 'https://app.progps.com.do/api-v2';
     }
 
-    private function post(string $endpoint, $params = [])
+    private function post(string $endpointKeyOrPath, $params = [])
     {
+        $endpoint = $this->endpoints[$endpointKeyOrPath] ?? $endpointKeyOrPath;
         $params['hash'] = $this->apiKey;
 
-        $response = Http::withHeaders([
+        return Http::withHeaders([
             'Content-Type' => 'application/json',
         ])->post("{$this->baseUrl}/{$endpoint}", $params);
-
-        return $response;
     }
 
-    function fetchBatchRequests(array $endpoints): array
+    public function fetchBatchRequests(array $requests): array
     {
-        $responses = Http::pool(function (Pool $pool) use ($endpoints) {
-            $requests = [];
+        return Http::pool(function (Pool $pool) use ($requests) {
+            $responses = [];
 
-            foreach ($endpoints as $key => $endpoint) {
-                $requests[$key] = $pool
+            foreach ($requests as $index => $request) {
+                $key = $request['key'];
+                $params = $request['params'] ?? [];
+                $endpoint = $this->endpoints[$key] ?? $key;
+                $params['hash'] = $this->apiKey;
+
+                $responses[$key] = $pool
                     ->as($key)
                     ->withHeaders(['Content-Type' => 'application/json'])
-                    ->post("{$this->baseUrl}/{$endpoint}", ['hash' => $this->apiKey]);
+                    ->post("{$this->baseUrl}/{$endpoint}", $params);
             }
 
-            return array_values($requests);
+            return $responses;
         });
-
-        return $responses;
     }
+
 
     public function createRoute($taskData)
     {
-        $response = $this->post('task/route/create', $taskData);
+        $response = $this->post('create_route', $taskData);
         return $response->json() ?? [];
     }
 
     public function createTask($taskData)
     {
-        $response = $this->post('task/create', $taskData);
+        $response = $this->post('create_task', $taskData);
         return $response->json() ?? [];
     }
 
     public function getScheduleTaskData($id): array
     {
-        $response = $this->post('/task/schedule/read', [
+        $response = $this->post('schedule_read', [
             'id' => $id,
         ]);
         return $response->json() ?? [];
@@ -69,50 +72,48 @@ class ProGpsApiService
 
     public function getScheduleTasks($params = null): array
     {
-        $response = $this->post('task/schedule/list', $params);
-        return $response->json() ?? [];
+        return $this->post('schedule_list', $params)->json() ?? [];
     }
 
     public function getVehiclesMaintenance(): array
     {
-        $response = $this->post('vehicle/maintenance/list');
-        return $response->json() ?? [];
+        return $this->post('vehicles_maintenance')->json() ?? [];
     }
 
     public function getVehicles(): array
     {
-        return $this->post('vehicle/list')->json() ?? [];
+        return $this->post('vehicles')->json() ?? [];
     }
 
     public function getVehicle(int $id)
     {
-        return $this->post('vehicle/read', ['vehicle_id' => $id])->json() ?? [];
+        return $this->post('vehicle_read', ['vehicle_id' => $id])->json() ?? [];
     }
 
     public function getTrackers($params = null): array
     {
-        return $this->post('tracker/list', $params)->json() ?? [];
+        return $this->post('trackers', $params)->json() ?? [];
     }
 
     public function getTracker(int $id)
     {
-        return $this->post('tracker/read', ['tracker_id' => $id])->json() ?? [];
+        return $this->post('tracker_read', ['tracker_id' => $id])->json() ?? [];
     }
 
     public function getTrackersStates($ids)
     {
-        return $this->post('tracker/get_states', ['trackers' => $ids]) ?? [];
+        return $this->post('tracker_states', ['trackers' => $ids]) ?? [];
     }
 
     public function getEventTypes(): array
     {
-        return $this->post('tracker/rule/list')->json() ?? [];
+        return $this->post('event_types')->json() ?? [];
     }
 
     public function getHistoryOfTrackers($ids, string $from, string $to, $events): array
     {
 
-        return $this->post('history/tracker/list', [
+        return $this->post('tracker_history', [
             'trackers' => $ids,
             'from' => $from,
             'to' => $to,
@@ -124,47 +125,47 @@ class ProGpsApiService
 
     public function getGarages(): array
     {
-        return $this->post('garage/list')->json() ?? [];
+        return $this->post('garages')->json() ?? [];
     }
 
     public function getGeofences($params = null): array
     {
-        return $this->post('zone/list', $params)->json() ?? [];
+        return $this->post('geofences', $params)->json() ?? [];
     }
 
     public function getDepartments(): array
     {
-        return $this->post('department/list')->json() ?? [];
+        return $this->post('departments')->json() ?? [];
     }
 
     public function getEmployees(): array
     {
-        return $this->post('employee/list')->json() ?? [];
+        return $this->post('employees')->json() ?? [];
     }
 
     public function getGroups(): array
     {
-        return $this->post('tracker/group/list')->json() ?? [];
+        return $this->post('groups')->json() ?? [];
     }
 
     public function getModels(): array
     {
-        return $this->post('tracker/list_models')->json() ?? [];
+        return $this->post('models')->json() ?? [];
     }
 
     public function getTags(): array
     {
-        return $this->post('tag/list')->json() ?? [];
+        return $this->post('tags')->json() ?? [];
     }
 
     public function getUserInfo(): array
     {
-        return $this->post('user/get_info')->json() ?? [];
+        return $this->post('user_info')->json() ?? [];
     }
 
     public function getOdometerOfListOfTrackers($trackersIds)
     {
-        $response = $this->post("tracker/counter/value/list", [
+        $response = $this->post("odometer_list", [
             'trackers' => $trackersIds,
             'type' => 'odometer',
         ]);
@@ -255,4 +256,29 @@ class ProGpsApiService
     }
 
     public $validReportTypeIds = [1, 2, 3, 4, 5];
+
+    protected array $endpoints = [
+        'create_task' => 'task/create',
+        'create_route' => 'task/route/create',
+        'schedule_read' => 'task/schedule/read',
+        'schedule_list' => 'task/schedule/list',
+        'vehicles_maintenance' => 'vehicle/maintenance/list',
+        'vehicles' => 'vehicle/list',
+        'vehicle_read' => 'vehicle/read',
+        'trackers' => 'tracker/list',
+        'tracker_read' => 'tracker/read',
+        'tracker_states' => 'tracker/get_states',
+        'tracker_history' => 'history/tracker/list',
+        'event_types' => 'tracker/rule/list',
+        'history' => 'history/tracker/list',
+        'garages' => 'garage/list',
+        'geofences' => 'zone/list',
+        'departments' => 'department/list',
+        'employees' => 'employee/list',
+        'groups' => 'tracker/group/list',
+        'models' => 'tracker/list_models',
+        'tags' => 'tag/list',
+        'user_info' => 'user/get_info',
+        'odometer_list' => 'tracker/counter/value/list',
+    ];
 }

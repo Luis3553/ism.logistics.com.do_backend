@@ -39,7 +39,7 @@ class generateTaskForTheDay extends Command
                 ->get();
 
             foreach ($tasksConfigs as $taskConfig) {
-                $apiService = new ProGpsApiService($taskConfig->user_hash);
+                $apiService = new ProGpsApiService($taskConfig->user->hash);
                 $taskData = $apiService->getScheduleTaskData($taskConfig->task_id);
                 $taskType = $taskData['value']['type'];
 

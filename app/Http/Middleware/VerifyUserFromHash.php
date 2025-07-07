@@ -29,10 +29,10 @@ class VerifyUserFromHash
 
             if (!$userInfo || !isset($userInfo['user_info']['id'])) return response()->json(['message' => 'User id of the hash provided doesnt exist on the platform.'], 401);
 
-            $user = User::firstOrCreate([
-                'user_id' => $userInfo['user_info']['id'],
-                'hash' => $userHash,
-            ]);
+            $user = User::updateOrCreate(
+                ['user_id' => $userInfo['user_info']['id']],
+                ['hash' => $userHash]
+            );
         }
 
         $request->attributes->set('user', $user);

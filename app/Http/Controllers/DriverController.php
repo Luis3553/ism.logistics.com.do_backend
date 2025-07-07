@@ -67,10 +67,10 @@ class DriverController extends Controller
     public function garages(Request $request)
     {
         $endpoints = [
-            'drivers' => 'employee/list',
-            'garages' => 'garage/list',
-            'vehicles' => 'vehicle/list',
-            'departments' => 'department/list',
+            ['key' => 'employees'],
+            ['key' => 'garages'],
+            ['key' => 'vehicles'],
+            ['key' => 'departments']
         ];
 
         $responses = $this->apiService->fetchBatchRequests($endpoints);
@@ -78,7 +78,7 @@ class DriverController extends Controller
         $departments = collect($responses['departments']['list'])->keyBy('id');
         $garages = collect($responses['garages']['list'])->keyBy('id');
         $vehicles = collect($responses['vehicles']['list']);
-        $drivers = collect($responses['drivers']['list'])->keyBy('id');
+        $drivers = collect($responses['employees']['list'])->keyBy('id');
 
         $grouped = [];
 

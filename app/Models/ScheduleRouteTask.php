@@ -15,7 +15,6 @@ class ScheduleRouteTask extends Model
         'user_id',
         'task_id',
         'tracker_id',
-        'user_hash',
         'frequency',
         'frequency_value',
         'weekday_ordinal',
@@ -32,8 +31,12 @@ class ScheduleRouteTask extends Model
     ];
 
     protected $hidden = [
-        'user_hash',
         'created_at',
         'updated_at',
     ];
+
+    public function user()
+    {
+        return $this->belongsTo(User::class, 'user_id');
+    }
 }

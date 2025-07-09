@@ -50,7 +50,7 @@ class ScheduleRouteTaskController extends Controller
 
         $responses = $this->apiService->fetchBatchRequests([
             ['key' => 'trackers'],
-            ['key' => 'schedule_list', 'params' => ['types' => ['task', 'route']]],
+            ['key' => 'schedule_list', 'params' => ['types' => ['task', 'route'], 'trackers' => $trackersIds]],
             ['key' => 'employees'],
         ]);
 
@@ -122,6 +122,8 @@ class ScheduleRouteTaskController extends Controller
             ->where('user_id', $userId)
             ->first();
 
+        $tracker = $this->apiService->getTracker($request->input('tracker_id'));
+
         if (!$task) return response()->json(['message' => 'Task not found or you do not have permission to update it'], 404);
 
         $task->update([
@@ -133,6 +135,9 @@ class ScheduleRouteTaskController extends Controller
             'start_date' => Carbon::parse($request->input('start_date'))->format('Y-m-d'),
         ]);
 
-        return response()->json(['message' => 'Task updated successfully', 'data' => $task], 200);
+        return response()->json(['message' => 'Task updated successfully', 'data' => array_merge(
+            $task->toArray(),
+            ['tracker' => $tracker['value']['label'] ?? 'N/A']
+        )], 200);
     }
 }

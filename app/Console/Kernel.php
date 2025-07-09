@@ -2,9 +2,6 @@
 
 namespace App\Console;
 
-use App\Jobs\FetchApiDataJob;
-use App\Jobs\RestartContactsInvoicedAndConfirmedStatusJob;
-use App\Jobs\StoreStatisticsJob;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
 

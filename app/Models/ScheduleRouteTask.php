@@ -11,6 +11,11 @@ class ScheduleRouteTask extends Model
 
     protected $table = 'schedule_route_tasks';
 
+    protected $attributes = [
+        'is_valid' => true,
+        'is_active' => true,
+    ];
+
     protected $fillable = [
         'user_id',
         'task_id',

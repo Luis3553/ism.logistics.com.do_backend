@@ -49,6 +49,10 @@ class ProGpsApiService
         });
     }
 
+    public function getPlaces($params = null): array
+    {
+        return $this->post('places', $params)->json() ?? [];
+    }
 
     public function createRoute($taskData)
     {
@@ -258,6 +262,7 @@ class ProGpsApiService
     public $validReportTypeIds = [1, 2, 3, 4, 5];
 
     protected array $endpoints = [
+        'places' => 'place/list',
         'create_task' => 'task/create',
         'create_route' => 'task/route/create',
         'schedule_read' => 'task/schedule/read',

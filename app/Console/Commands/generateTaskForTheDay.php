@@ -8,7 +8,7 @@ use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 
-class generateTaskForTheDay extends Command
+class GenerateTaskForTheDay extends Command
 {
     /**
      * The name and signature of the console command.
@@ -34,20 +34,30 @@ class generateTaskForTheDay extends Command
             $this->info('Generating tasks for today...');
 
             $today = Carbon::today();
-            $tasksConfigs = ScheduleRouteTask::where('is_valid', true)
+            $tasksConfigs = ScheduleRouteTask::with('user')
+                ->where('is_valid', true)
                 ->where('is_active', true)
-                ->get();
+                ->get()
+                ->filter(fn($task) => $task->user && $task->user->hash)
+                ->groupBy(fn($task) => $task->user->hash);
 
-            foreach ($tasksConfigs as $taskConfig) {
-                $apiService = new ProGpsApiService($taskConfig->user->hash);
-                $taskData = $apiService->getScheduleTaskData($taskConfig->task_id);
-                $taskType = $taskData['value']['type'];
+            foreach ($tasksConfigs as $hash => $configs) {
+                $apiService = new ProGpsApiService($hash);
+                // $places = collect($apiService->getPlaces()['list'])
+                //     ->keyBy(fn($val) => $val['location']['lat'] . ',' . $val['location']['lng'])
+                //     ->toArray();
 
-                if ($this->shouldGenerateTask($taskConfig, $today)) {
-                    match ($taskType) {
-                        'route' => $this->generateRouteTask($taskConfig, $taskData, $apiService),
-                        'task' => $this->generateSimpleTask($taskConfig, $taskData, $apiService),
-                    };
+                foreach ($configs as $taskConfig) {
+                    $taskData = $apiService->getScheduleTaskData($taskConfig->task_id);
+                    $taskType = $taskData['value']['type'];
+                    // $checkPointImageUrl = checkIfCheckpointHasImage($taskData['checkpoints'], $places, $apiService) ? 
+                    // $apiService->getCheckpointImageUrl($taskData['checkpoints']) : null;
+                    if ($this->shouldGenerateTask($taskConfig, $today)) {
+                        match ($taskType) {
+                            'route' => $this->generateRouteTask($taskConfig, $taskData, $apiService),
+                            'task' => $this->generateSimpleTask($taskConfig, $taskData, $apiService),
+                        };
+                    }
                 }
             }
 
@@ -158,5 +168,10 @@ class generateTaskForTheDay extends Command
             ],
             'create_form' => true,
         ]);
+    }
+
+    public function checkIfCheckpointHasImage($checkpoint, $places, $apiService): bool
+    {
+        return isset($checkpoint['image']) && !empty($checkpoint['image']);
     }
 }

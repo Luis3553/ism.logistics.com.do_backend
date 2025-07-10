@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Resources\ScheduleRouteTaskResource;
 use App\Services\ProGpsApiService;
 use App\Models\ScheduleRouteTask;
+use App\Services\RouteTaskService;
 use App\Validators\ScheduleRouteTask\ScheduleRouteTaskValidator;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -26,7 +27,7 @@ class ScheduleRouteTaskController extends Controller
             ->filter(function ($task) use ($alreadyExistConfigs) {
                 return !in_array($task['id'], $alreadyExistConfigs);
             })
-            ->sortBy('created_at') // Correct method for collections
+            ->sortBy('created_at')
             ->map(function ($task) {
                 return [
                     'value' => $task['id'],
@@ -41,24 +42,10 @@ class ScheduleRouteTaskController extends Controller
 
     public function getConfigsForScheduleTasks(Request $request)
     {
-        $trackersIds = json_decode($request->query('trackers', []));
         $userId = $request->attributes->get('user')->user_id;
+        $tasks = ScheduleRouteTask::where('user_id', $userId)->get();
 
-        $tasks = ScheduleRouteTask::where('user_id', $userId)
-            ->whereIn('tracker_id', $trackersIds)
-            ->get();
-
-        $responses = $this->apiService->fetchBatchRequests([
-            ['key' => 'trackers'],
-            ['key' => 'schedule_list', 'params' => ['types' => ['task', 'route'], 'trackers' => $trackersIds]],
-            ['key' => 'employees'],
-        ]);
-
-        $sharedData = [
-            'trackersMap' => collect($responses['trackers']['list'])->keyBy('id')->toArray(),
-            'tasksMap' => collect($responses['schedule_list']['list'])->keyBy('id')->toArray(),
-            'employeesMap' => collect($responses['employees']['list'])->keyBy('id')->toArray(),
-        ];
+        $sharedData = $this->getSharedDataForTasks();
 
         $resources = collect($tasks)->map(fn($task) => new ScheduleRouteTaskResource($task, $sharedData));
 
@@ -70,29 +57,26 @@ class ScheduleRouteTaskController extends Controller
 
     public function createScheduleTask(Request $request)
     {
-        $validator = ScheduleRouteTaskValidator::validate($request->all());
+        $validator = ScheduleRouteTaskValidator::validateForCreate($request->all());
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
         $user = $request->attributes->get('user');
 
-        $task = ScheduleRouteTask::create([
-            'user_id' => $user->user_id,
-            'task_id' => $request->input('task_id'),
-            'tracker_id' => $request->input('tracker_id'),
-            'frequency' => $request->input('frequency'),
-            'frequency_value' => $request->input('frequency_value'),
-            'days_of_week' => $request->input('days_of_week'),
-            'weekday_ordinal' => $request->input('weekday_ordinal', null),
-            'start_date' => Carbon::parse($request->input('start_date'))->format('Y-m-d'),
-        ]);
+        $taskData = array_merge(['user_id' => $user->user_id], $request->all());
+        $task = ScheduleRouteTask::create($taskData);
 
         if (!$task) return response()->json(['message' => 'Failed to create task'], 500);
 
+        $routeTaskService = new RouteTaskService($user->hash);
+        $routeTaskService->handle(collect([$task]));
+
+        $sharedData = $this->getSharedDataForTasks();
+
         return response()->json([
             'message' => 'Task created successfully',
-            'data' => new ScheduleRouteTaskResource($task),
+            'data' => new ScheduleRouteTaskResource($task, $sharedData),
         ], 201);
     }
 
@@ -113,7 +97,7 @@ class ScheduleRouteTaskController extends Controller
 
     public function updateScheduleTask(Request $request, $id)
     {
-        $validator = ScheduleRouteTaskValidator::validate($request->all());
+        $validator = ScheduleRouteTaskValidator::validateForUpdate($request->all());
         if ($validator->fails()) return response()->json(['errors' => $validator->errors()], 422);
 
         $userId = $request->attributes->get('user')->user_id;
@@ -122,22 +106,30 @@ class ScheduleRouteTaskController extends Controller
             ->where('user_id', $userId)
             ->first();
 
-        $tracker = $this->apiService->getTracker($request->input('tracker_id'));
-
         if (!$task) return response()->json(['message' => 'Task not found or you do not have permission to update it'], 404);
 
-        $task->update([
-            'tracker_id' => $request->input('tracker_id'),
-            'frequency' => $request->input('frequency'),
-            'frequency_value' => $request->input('frequency_value'),
-            'days_of_week' => $request->input('days_of_week'),
-            'is_active' => $request->input('is_active', true),
-            'start_date' => Carbon::parse($request->input('start_date'))->format('Y-m-d'),
+        $sharedData = $this->getSharedDataForTasks();
+
+        $task->update($request->all());
+
+        return response()->json(['message' => 'Task updated successfully', 'data' => new ScheduleRouteTaskResource($task,  $sharedData)], 200);
+    }
+
+    public function getSharedDataForTasks()
+    {
+        $responses = $this->apiService->fetchBatchRequests([
+            ['key' => 'trackers'],
+            ['key' => 'schedule_list', 'params' => ['types' => ['task', 'route']]],
+            ['key' => 'employees'],
         ]);
 
-        return response()->json(['message' => 'Task updated successfully', 'data' => array_merge(
-            $task->toArray(),
-            ['tracker' => $tracker['value']['label'] ?? 'N/A']
-        )], 200);
+        return [
+            'trackersMap' => collect($responses['trackers']['list'])->keyBy('id')->toArray(),
+            'tasksMap' => collect($responses['schedule_list']['list'])->keyBy('id')->toArray(),
+            'employeesMap' => collect($responses['employees']['list'])
+                ->filter(fn($employee) => !is_null($employee['tracker_id']))
+                ->keyBy('tracker_id')
+                ->toArray(),
+        ];
     }
 }

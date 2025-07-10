@@ -11,11 +11,12 @@ class ScheduleRouteTaskResource extends JsonResource
     protected array $trackersMap;
     protected array $tasksMap;
     protected array $employeesMap;
+    protected string $baseUrl;
 
     public function __construct($resource, array $sharedData = [])
     {
         parent::__construct($resource);
-
+        $this->baseUrl = "https://app.progps.com.do/api-v2";
         $this->trackersMap = $sharedData['trackersMap'] ?? [];
         $this->tasksMap = $sharedData['tasksMap'] ?? [];
         $this->employeesMap = $sharedData['employeesMap'] ?? [];
@@ -27,6 +28,14 @@ class ScheduleRouteTaskResource extends JsonResource
         $employeeName = $employee
             ? trim("{$employee['first_name']} {$employee['middle_name']} {$employee['last_name']}")
             : 'N/A';
+        $employeeImageUrl = $employee && isset($employee['avatar_file_name']) ?
+            $this->baseUrl . '/static/employee/avatars/' . $employee['avatar_file_name']
+            : null;
+
+        match ($this->tasksMap[$this->task_id]['type']) {
+            'route' => $checkpoints = collect($this->tasksMap[$this->task_id]['checkpoints'] ?? [])->map(fn($checkpoint) => $checkpoint['label'])->toArray(),
+            'task' => $checkpoints = [$this->tasksMap[$this->task_id]['label']],
+        };
 
         return [
             'id' => $this->id,
@@ -39,6 +48,8 @@ class ScheduleRouteTaskResource extends JsonResource
             'frequency_value' => $this->frequency_value,
             'days_of_week' => $this->days_of_week,
             'weekday_ordinal' => $this->weekday_ordinal,
+            'checkpoints' => $checkpoints,
+            'employee_image_url' => $employeeImageUrl,
             'is_valid' => $this->is_valid,
             'is_active' => $this->is_active,
             'start_date' => $this->start_date,

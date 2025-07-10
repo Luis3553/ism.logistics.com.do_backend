@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Models\User;
 use Illuminate\Http\Client\Pool;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -10,7 +9,7 @@ use Illuminate\Support\Facades\Log;
 class ProGpsApiService
 {
     public string $apiKey;
-    protected string $baseUrl;
+    public string $baseUrl;
 
     public function __construct($apiKey)
     {

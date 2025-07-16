@@ -57,7 +57,6 @@ class NotificationService
             "excessive_parking" => ["excessive_parking_finished", "excessive_parking"],
             "task_status_change" => ["task_status_change"],
             "work_status_change" => ["work_status_change"],
-            "idling" => ["idling"],
             "idling_soft" => ["idle_end", "idle_start"],
             "fuel_level_leap" => ["drain", "fueling"],
             "harsh_driving" => ["harsh_driving"],
@@ -95,7 +94,6 @@ class NotificationService
                 $mainKey = $parts[0];
                 return $helper[$mainKey] ?? [];
             })->unique()->values()->toArray();
-
 
         // Step 2: Get filtered notifications
         $notifications = $this->apiService->getHistoryOfTrackers(

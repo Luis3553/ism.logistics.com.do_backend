@@ -48,6 +48,16 @@ class ProGpsApiService
         });
     }
 
+    public function getTaskList()
+    {
+        return $this->post('tasks')->json() ?? [];
+    }
+
+    public function getFormTemplateList()
+    {
+        return $this->post('form_template_list')->json() ?? [];
+    }
+
     public function getPlaces($params = null): array
     {
         return $this->post('places', $params)->json() ?? [];
@@ -55,22 +65,17 @@ class ProGpsApiService
 
     public function createRoute($taskData)
     {
-        $response = $this->post('create_route', $taskData);
-        return $response->json() ?? [];
+        return $this->post('create_route', $taskData)->json() ?? [];
     }
 
     public function createTask($taskData)
     {
-        $response = $this->post('create_task', $taskData);
-        return $response->json() ?? [];
+        return $this->post('create_task', $taskData)->json() ?? [];
     }
 
     public function getScheduleTaskData($id): array
     {
-        $response = $this->post('schedule_read', [
-            'id' => $id,
-        ]);
-        return $response->json() ?? [];
+        return $this->post('schedule_read', ['id' => $id])->json() ?? [];
     }
 
     public function getScheduleTasks($params = null): array
@@ -78,9 +83,9 @@ class ProGpsApiService
         return $this->post('schedule_list', $params)->json() ?? [];
     }
 
-    public function getVehiclesMaintenance(): array
+    public function getVehiclesServicesTask(): array
     {
-        return $this->post('vehicles_maintenance')->json() ?? [];
+        return $this->post('vehicles_service_task')->json() ?? [];
     }
 
     public function getVehicles(): array
@@ -258,15 +263,15 @@ class ProGpsApiService
         return $result;
     }
 
-    public $validReportTypeIds = [1, 2, 3, 4, 5];
-
     protected array $endpoints = [
+        'tasks' => 'task/list',
+        'form_template_list' => 'form/template/list',
         'places' => 'place/list',
         'create_task' => 'task/create',
         'create_route' => 'task/route/create',
         'schedule_read' => 'task/schedule/read',
         'schedule_list' => 'task/schedule/list',
-        'vehicles_maintenance' => 'vehicle/maintenance/list',
+        'vehicles_service_task' => 'vehicle/service_task/list',
         'vehicles' => 'vehicle/list',
         'vehicle_read' => 'vehicle/read',
         'trackers' => 'tracker/list',

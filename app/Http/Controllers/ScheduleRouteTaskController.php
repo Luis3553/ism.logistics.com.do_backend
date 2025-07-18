@@ -11,6 +11,8 @@ use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
+use function PHPUnit\Framework\isEmpty;
+
 class ScheduleRouteTaskController extends Controller
 {
     public function __construct(private ProGpsApiService $apiService) {}
@@ -47,7 +49,7 @@ class ScheduleRouteTaskController extends Controller
 
         $sharedData = $this->getSharedDataForTasks();
 
-        $resources = collect($tasks)->map(fn($task) => new ScheduleRouteTaskResource($task, $sharedData));
+        $resources = collect($tasks)->filter(fn($task) => !isEmpty($task))->map(fn($task) => new ScheduleRouteTaskResource($task, $sharedData));
 
         return response()->json([
             'list' => $resources,

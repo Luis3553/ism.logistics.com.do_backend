@@ -26,4 +26,9 @@ class Report extends Model
     protected $hidden = [
         'file_path',
     ];
+
+    public function user()
+    {
+        return $this->belongsTo(User::class, 'user_id');
+    }
 }

@@ -2,20 +2,19 @@
 
 namespace App\Http\Controllers;
 
+use App\Factories\ReportValidatorFactory;
 use App\Services\ProGpsApiService;
 use App\Jobs\ProcessReportJob;
 use App\Models\Report;
+use App\Services\ReportExportService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
-use PhpOffice\PhpSpreadsheet\Spreadsheet;
-use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
-use PhpOffice\PhpSpreadsheet\Style\Fill;
-use PhpOffice\PhpSpreadsheet\Style\Alignment;
-use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
+use Illuminate\Validation\ValidationException;
+use InvalidArgumentException;
 
 class ReportController extends Controller
 {
-    public function __construct(protected ProGpsApiService $apiService) {}
+    public function __construct(protected ProGpsApiService $apiService, protected ReportExportService $reportExportService) {}
 
     // Get employees for the panel
     public function getEmployees(Request $request)
@@ -186,32 +185,38 @@ class ReportController extends Controller
     // Generate report
     public function generateReport(Request $request)
     {
-        $userId = $request->attributes->get('user')->user_id;
+        try {
+            $userId = $request->attributes->get('user')->user_id;
 
-        $reportTypeId = $request->input('report_type_id') ?? 0;
-        if (!in_array($reportTypeId, $this->apiService->validReportTypeIds)) return response()->json(['message' => 'Invalid report type id.'], 400);
+            $reportValidator = ReportValidatorFactory::make($request->input('report_type_id'));
+            $reportValidator->validate($request->input('report_payload'));
 
-        $isValidReport = $this->validateReportPayload($request->input('report_payload'), $reportTypeId);
-        if (!$isValidReport) return response()->json(['message' => 'Invalid report payload.'], 400);
+            $payload = [
+                'user_id' => $userId,
+                'title' => $request->input('report_payload')['title'],
+                'report_type_id' => $request->input('report_type_id'),
+                'report_payload' => $request->input('report_payload'),
+                'percent' => 0,
+                'file_path' => null,
+            ];
 
-        $payload = [
-            'user_id' => $userId,
-            'title' => $request->input('report_payload')['title'],
-            'report_type_id' => $reportTypeId,
-            'report_payload' => $request->input('report_payload'),
-            'percent' => 0,
-            'file_path' => null,
-        ];
+            $report = Report::create($payload);
+            if (!$report) return response()->json(['message' => 'Failed to create report.'], 500);
 
-        $report = Report::create($payload);
-        if (!$report) return response()->json(['message' => 'Failed to create report.'], 500);
+            ProcessReportJob::dispatch($report);
 
-        ProcessReportJob::dispatch($report, $this->apiService->apiKey);
-
-        return response()->json([
-            'message' => 'Report is being created. You can check the status later.',
-            'report' => $report->toArray(),
-        ], 201);
+            return response()->json([
+                'message' => 'Report is being created. You can check the status later.',
+                'report' => $report->toArray(),
+            ], 201);
+        } catch (ValidationException $e) {
+            return response()->json(['errors' => $e->errors()], 422);
+        } catch (InvalidArgumentException $e) {
+            return response()->json(['message' => $e->getMessage()], 400);
+        } catch (\Exception $e) {
+            Log::error('Report generation failed', ['exception' => $e]);
+            return response()->json(['message' => 'An error occurred while generating the report.'], 500);
+        }
     }
 
     // Download Report on format XLS
@@ -233,248 +238,10 @@ class ReportController extends Controller
 
         if ($report->file_path && file_exists($report->file_path)) {
             if ($format === 'xlsx') {
-                return $this->exportGenericReportToExcel(json_decode(file_get_contents($report->file_path), true));
+                return $this->reportExportService->exportToExcel(json_decode(file_get_contents($report->file_path), true));
             }
         }
 
         return response()->json(['message' => 'Report file not available. Something happened during the creation or storing process.'], 404);
-    }
-
-    // Export report data to Excel
-    public function exportGenericReportToExcel(array $reportData)
-    {
-        $spreadsheet = new Spreadsheet();
-        $sheet = $spreadsheet->getActiveSheet();
-        $numberOfColumns = count($reportData['columns_dimensions_for_excel_file'] ?? []);
-
-        // ------------------- HEADER -------------------
-        $lastLetter = Coordinate::stringFromColumnIndex(max(1, $numberOfColumns));
-
-        $sheet->mergeCells('A1:' . $lastLetter . '1');
-        $sheet->setCellValue('A1', $reportData['title'] ?? 'Reporte General');
-        $sheet->setCellValue('A2', $reportData['date']);
-
-        $sheet->getStyle('A1')->applyFromArray([
-            'font' => ['bold' => true, 'size' => 16],
-            'alignment' => ['horizontal' => Alignment::HORIZONTAL_LEFT, 'vertical' => Alignment::VERTICAL_BOTTOM],
-        ]);
-
-        $sheet->mergeCells('A2:' . $lastLetter . '2');
-        $sheet->getStyle('A2')->applyFromArray([
-            'font' => ['bold' => true, 'size' => 12],
-            'alignment' => ['horizontal' => Alignment::HORIZONTAL_LEFT, 'vertical' => Alignment::VERTICAL_TOP],
-        ]);
-        // ------------------------------------------------
-
-        // ------------------- SUMMARY ---------------------
-        $summary = $reportData['summary'] ?? null;
-        $row = 3;
-        if ($summary) {
-            $sheet->mergeCells("A{$row}:B{$row}");
-            $sheet->setCellValue("A{$row}", $summary['title'] ?? 'Resumen');
-
-            $sheet->getStyle("A{$row}")->applyFromArray([
-                'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => ltrim($summary['color'] ?? 'eeece1', '#')]],
-                'font' => ['bold' => true],
-                'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
-            ]);
-
-            $row++;
-            foreach ($summary['rows'] ?? [] as $summaryRow) {
-                $sheet->setCellValue("A{$row}", $summaryRow['title']);
-                $sheet->setCellValue("B{$row}", $summaryRow['value']);
-                $sheet->getStyle("A{$row}")->applyFromArray([
-                    'font' => ['bold' => true],
-                    'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => ltrim($summary['color'] ?? 'eeece1', '#')]],
-                    'alignment' => ['horizontal' => Alignment::HORIZONTAL_LEFT],
-                ]);
-                $sheet->getStyle("B{$row}")->applyFromArray([
-                    'alignment' => ['horizontal' => Alignment::HORIZONTAL_LEFT],
-                ]);
-                $row++;
-            }
-
-            $sheet->getStyle("A3:B" . ($row - 1))->applyFromArray([
-                'borders' => [
-                    'allBorders' => [
-                        'borderStyle' => \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN,
-                        'color' => ['rgb' => '000000']
-                    ]
-                ]
-            ]);
-        }
-
-        $row += 1;
-
-        // ------------------- DATA ---------------------
-        $writeGroup = function ($group, &$row, $sheet, $depth = 0) use (&$writeGroup, $lastLetter) {
-            $columns = $group['content']['columns'] ?? [];
-
-            $sheet->setCellValue("A{$row}", $group['groupLabel']);
-            $sheet->mergeCells("A{$row}:{$lastLetter}{$row}");
-
-            $sheet->getStyle("A{$row}:{$lastLetter}{$row}")->applyFromArray([
-                'fill' => [
-                    'fillType' => Fill::FILL_SOLID,
-                    'startColor' => ['rgb' => ltrim($group['bgColor'] ?? 'eeece1', '#')]
-                ],
-                'font' => ['bold' => true],
-                'borders' => [
-                    'allBorders' => [
-                        'borderStyle' => \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN,
-                        'color' => ['rgb' => '000000']
-                    ]
-                ],
-                'alignment' => ['horizontal' => Alignment::HORIZONTAL_LEFT]
-            ]);
-            $row++;
-
-            if (isset($group['content']) && isset($group['content']['rows']) && isset($group['content']['columns'])) {
-                $content = $group['content'];
-                $columns = $content['columns'] ?? [];
-
-                $colNames = array_map(fn($col) => $col['name'], $columns);
-                $sheet->fromArray($colNames, null, "A{$row}");
-
-                $sheet->getStyle("A{$row}:{$lastLetter}{$row}")->applyFromArray([
-                    'font' => ['bold' => true],
-                    'fill' => [
-                        'fillType' => Fill::FILL_SOLID,
-                        'startColor' => ['rgb' => ltrim($content['bgColor'] ?? 'EBF1DE', '#')]
-                    ],
-                    'borders' => [
-                        'allBorders' => [
-                            'borderStyle' => \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN,
-                            'color' => ['rgb' => '000000']
-                        ]
-                    ],
-                    'alignment' => ['horizontal' => Alignment::HORIZONTAL_LEFT]
-                ]);
-                $row++;
-
-                foreach ($content['rows'] as $dataRow) {
-                    $sheet->fromArray(array_map(fn($col) => $dataRow[$col['key']], $columns), null, "A{$row}");
-                    $sheet->getStyle("A{$row}:{$lastLetter}{$row}")->applyFromArray([
-                        'borders' => [
-                            'allBorders' => [
-                                'borderStyle' => \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN,
-                                'color' => ['rgb' => '000000']
-                            ]
-                        ],
-                        'alignment' => ['horizontal' => Alignment::HORIZONTAL_LEFT]
-                    ]);
-                    $row++;
-                }
-
-                $sheet->mergeCells("A{$row}:{$lastLetter}{$row}");
-                $row++;
-            } elseif (isset($group['content'])) {
-                foreach ($group['content'] ?? [] as $childGroup) {
-                    $writeGroup($childGroup, $row, $sheet, $depth + 1);
-                }
-            }
-        };
-
-        foreach ($reportData['data'] ?? [] as $group) {
-            $writeGroup($group, $row, $sheet);
-        }
-
-        // ------------------ Final styling -------------------
-        $sheet->getRowDimension(1)->setRowHeight(28.2);
-        $sheet->getRowDimension(2)->setRowHeight(27.6);
-
-        $columnsDimensions = $reportData['columns_dimensions_for_excel_file'] ?? null;
-        if ($columnsDimensions) {
-            foreach ($columnsDimensions as $col => $width) {
-                $sheet->getColumnDimension($col)->setWidth($width);
-            }
-        }
-
-        $filename = 'Reporte.xlsx';
-        $tempFile = tempnam(sys_get_temp_dir(), $filename);
-        (new Xlsx($spreadsheet))->save($tempFile);
-
-        return response()->download($tempFile, $filename)->deleteFileAfterSend(true);
-    }
-
-    // VALIDATION METHODS FOR REPORTS PAYLOADS
-    public function validateReportPayload(array $payload,  $reportTypeId)
-    {
-        switch ($reportTypeId) {
-            case 1:
-                return $this->validateOdometerReportPayload($payload);
-            case 2:
-                return $this->validateSpeedupReportPayload($payload);
-            case 3:
-                return $this->validateNotificationsReportPayload($payload);
-            case 4:
-                return $this->validateVehicleInsurancePoliceExpirationReportPayload($payload);
-            case 5:
-                return $this->validateDriverLicenseExpirationReportPayload($payload);
-            default:
-                return false;
-        }
-    }
-
-    public function validateDriverLicenseExpirationReportPayload(array $payload)
-    {
-        $hasFromDate = (isset($payload['from']) && $this->isValidIso8601($payload['from'])) || $payload['from'] == null;
-        $hasToDate = (isset($payload['to']) && $this->isValidIso8601($payload['to'])) || $payload['to'] == null;
-        $hasTrackers = isset($payload['employees']) && is_array($payload['employees']) && count($payload['employees']) > 0;
-        $hasTitle = isset($payload['title']) && !empty($payload['title']);
-
-        return $hasFromDate && $hasToDate && $hasTrackers && $hasTitle;
-    }
-
-    public function validateVehicleInsurancePoliceExpirationReportPayload(array $payload)
-    {
-        $hasFromDate = (isset($payload['from']) && $this->isValidIso8601($payload['from'])) || $payload['from'] == null;
-        $hasToDate = (isset($payload['to']) && $this->isValidIso8601($payload['to'])) || $payload['to'] == null;
-        $hasTrackers = isset($payload['trackers']) && is_array($payload['trackers']) && count($payload['trackers']) > 0;
-        $hasTitle = isset($payload['title']) && !empty($payload['title']);
-
-        return $hasFromDate && $hasToDate && $hasTrackers && $hasTitle;
-    }
-
-    public function validateNotificationsReportPayload(array $payload)
-    {
-        $hasFromDate = isset($payload['from']) && $this->isValidIso8601($payload['from']);
-        $hasToDate = isset($payload['to']) && $this->isValidIso8601($payload['to']);
-        $hasTitle = isset($payload['title']) && !empty($payload['title']);
-        $hasTrackers = (isset($payload['trackers']) && is_array($payload['trackers']) && count($payload['trackers']) > 0) || $payload['trackers'] == "all";
-        $hasNotificationsFilter = (isset($payload['notifications']) && is_array($payload['notifications']) && count($payload['notifications']) > 0) || $payload['notifications'] == "all";
-        $hasGroups = (isset($payload['groups']) && is_array($payload['groups']) && count($payload['groups']) > 0) || $payload['groups'] == "all";
-
-        return $hasFromDate && $hasToDate && $hasTrackers && $hasTitle && $hasNotificationsFilter && $hasGroups;
-    }
-
-    public function validateOdometerReportPayload(array $payload)
-    {
-        $hasDate = isset($payload['date']) && $this->isValidIso8601($payload['date']);
-        $hasTrackers = isset($payload['trackers']) && is_array($payload['trackers']) && count($payload['trackers']) > 0;
-        $hasTitle = isset($payload['title']) && !empty($payload['title']);
-
-        return $hasDate && $hasTrackers && $hasTitle;
-    }
-
-    public function validateSpeedupReportPayload(array $payload)
-    {
-        $hasFromDate = isset($payload['from']) && $this->isValidIso8601($payload['from']);
-        $hasToDate = isset($payload['to']) && $this->isValidIso8601($payload['to']);
-        $min_duration = isset($payload['min_duration']) && is_numeric($payload['min_duration']) && $payload['min_duration'] >= 0;
-        $allowedSpeed = isset($payload['allowed_speed']) && is_numeric($payload['allowed_speed']) && $payload['allowed_speed'] > 0;
-        $hasTrackers = isset($payload['trackers']) && is_array($payload['trackers']) && count($payload['trackers']) > 0;
-        $hasTitle = isset($payload['title']) && !empty($payload['title']);
-
-        return $hasToDate && $hasFromDate && $hasTrackers && $hasTitle && $min_duration && $allowedSpeed;
-    }
-
-    protected function isValidIso8601($date)
-    {
-        try {
-            return \Carbon\Carbon::parse($date) !== false;
-        } catch (\Exception $e) {
-            return false;
-        }
     }
 }

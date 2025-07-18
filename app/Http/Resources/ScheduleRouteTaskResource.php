@@ -24,6 +24,10 @@ class ScheduleRouteTaskResource extends JsonResource
 
     public function toArray($request)
     {
+        if (!isset($this->tasksMap[$this->task_id])) {
+            return [];
+        }
+
         $employee = $this->employeesMap[$this->tracker_id] ?? null;
         $employeeName = $employee
             ? trim("{$employee['first_name']} {$employee['middle_name']} {$employee['last_name']}")

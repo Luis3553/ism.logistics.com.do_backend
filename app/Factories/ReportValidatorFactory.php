@@ -2,6 +2,7 @@
 
 namespace App\Factories;
 
+use App\Validators\Reports\DevicesBatteryLevelReportValidator;
 use App\Validators\Reports\VehicleInsurancePoliceExpirationReportValidator;
 use App\Validators\Reports\DriverLicenseExpirationReportValidator;
 use App\Validators\Reports\OfflineDevicesReportValidator;
@@ -30,6 +31,7 @@ class ReportValidatorFactory
             6 => new VehicleServiceTaskValidator(),
             7 => new OfflineDevicesReportValidator(),
             8 => new TasksAndVisitsReportsValidator(),
+            9 => new DevicesBatteryLevelReportValidator(),
             default => throw new \InvalidArgumentException("Unknown report type: $type"),
         };
     }

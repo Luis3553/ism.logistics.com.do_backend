@@ -103,7 +103,7 @@ class TasksAndVisitsReportGenerator
                                 $doneRow = [
                                     'tracker' => null,
                                     'efficiency' => null,
-                                    'label' => 'Terminado',
+                                    'label' => 'Completado',
                                     'total' => $totalDone,
                                 ] + collect($days)->mapWithKeys(function ($day) use ($tracker) {
                                     return [$day => $tracker[$day]['done'] ?? 0];

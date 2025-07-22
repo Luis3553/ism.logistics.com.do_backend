@@ -2,6 +2,7 @@
 
 namespace App\Factories;
 
+use App\Services\ReportsGenerators\DevicesBatteryLevelReportGenerator;
 use App\Services\ReportsGenerators\VehicleInsuranceReportGenerator;
 use App\Services\ReportsGenerators\OfflineDevicesReportGenerator;
 use App\Services\ReportsGenerators\DriverLicenseReportGenerator;
@@ -31,6 +32,7 @@ class ReportGeneratorFactory
             6 => new ServiceTasksReportGenerator(),
             7 => new OfflineDevicesReportGenerator(),
             8 => new TasksAndVisitsReportGenerator(),
+            9 => new DevicesBatteryLevelReportGenerator(),
             default => throw new \InvalidArgumentException("Invalid report type ID: {$reportTypeId}"),
         };
     }

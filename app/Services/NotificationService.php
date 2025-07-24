@@ -46,7 +46,7 @@ class NotificationService
 
         $helper = [
             "battery_off" => ["battery_off"],
-            "offline" => ["gps_lost", "gps_recover"],
+            "offline" => ["offline", "gps_lost", "gps_recover"],
             "state_field_control" => ["state_field_control"],
             "inoutzone" => ["outzone", "inzone"],
             "track_change" => ["track_start", "track_end"],
@@ -165,7 +165,8 @@ class NotificationService
             "alarmcontrol",
             "case_opened",
             "check_engine_light",
-            "door_alarm"
+            "door_alarm",
+            "offline"
         ];
 
         $validDisplayEvents = array_merge($selfContained, array_keys($eventPairs));

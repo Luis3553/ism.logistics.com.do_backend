@@ -59,7 +59,7 @@ class OfflineDevicesReportGenerator
                     'tracker_name' => $tracker['label'],
                     'reg_number' => $vehicle['reg_number'] ?? "-",
                     'sap_code' => $vehicle['trailer_reg_number'] ?? "-",
-                    'brand_and_model' => (explode(' ', trim($tracker['label']))[0] . " " . ($vehicle['model'] ?? "-")),
+                    'brand_and_model' => $vehicle ? (explode(' ', trim($vehicle['label']))[0] . " " . ($vehicle['model'])) : "-",
                     'imei' => $tracker['source']['device_id'],
                     'phone' => $this->decodePhoneNumber($tracker['source']['phone']) ?? "-",
                     'last_activity' => $last_update ? date('d/m/Y h:i A', strtotime($last_update)) : "-",

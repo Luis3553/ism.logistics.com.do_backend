@@ -239,6 +239,8 @@ class ReportController extends Controller
         if ($report->file_path && file_exists($report->file_path)) {
             if ($format === 'xlsx') {
                 return $this->reportExportService->exportToExcel(json_decode(file_get_contents($report->file_path), true));
+            } else if ($format === 'pdf') {
+                return $this->reportExportService->exportToPDF(json_decode(file_get_contents($report->file_path), true), $report->report_type_id);
             }
         }
 

@@ -83,14 +83,14 @@ export function createTableStructureForSpeedupReport({ outputs, allowedSpeed, mi
                                 const info = trackersInfoMap[event.id || event.tracker_id] || {};
 
                                 return {
-                                    tracker_name: info.label || "",
-                                    start_time: speed.start_time,
-                                    end_time: speed.end_time,
-                                    duration: speed.duration.value,
-                                    start_address: speed.start_address,
-                                    end_address: speed.end_address,
-                                    average_speed: speed.average_speed,
-                                    max_speed: speed.max_speed,
+                                    tracker_name: { value: info.label || "" },
+                                    start_time: { value: speed.start_time },
+                                    end_time: { value: speed.end_time },
+                                    duration: { value: speed.duration.value },
+                                    start_address: { value: speed.start_address },
+                                    end_address: { value: speed.end_address },
+                                    average_speed: { value: speed.average_speed },
+                                    max_speed: { value: speed.max_speed },
                                 };
                             })
                         ),

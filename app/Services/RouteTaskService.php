@@ -102,11 +102,13 @@ class RouteTaskService
             $from = Carbon::today()->setTimeFromTimeString($checkpoint['from_time']);
             $to = (clone $from)->addMinutes($checkpoint['duration']);
 
+            $descpForImage = $imageUrl ? 'Ver Imagen del lugar: ' . $imageUrl . ' ' : '';
+
             return [
                 'tracker_id' => $taskConfig['tracker_id'],
                 'location' => $checkpoint['location'],
                 'label' => $checkpoint['label'],
-                'description' => $checkpoint['description'] . ' ' . $imageUrl,
+                'description' => $descpForImage . $checkpoint['description'],
                 'from' => $from->setTimezone('UTC')->format('Y-m-d\TH:i:s\Z'),
                 'to' => $to->setTimezone('UTC')->format('Y-m-d\TH:i:s\Z'),
                 'max_delay' => $checkpoint['max_delay'],
@@ -135,12 +137,14 @@ class RouteTaskService
         $from = Carbon::today()->setTimeFromTimeString($taskData['value']['from_time']);
         $to = (clone $from)->addMinutes($taskData['value']['duration']);
 
+        $descpForImage = $imageUrl ? 'Ver Imagen del lugar: ' . $imageUrl . ' ' : '';
+
         $this->apiService->createTask([
             'task' => [
                 'tracker_id' => $taskConfig['tracker_id'],
                 'location' => $taskData['value']['location'],
                 'label' => $taskData['value']['label'],
-                'description' => $taskData['value']['description'] . ' ' . $imageUrl,
+                'description' => $descpForImage . $taskData['value']['description'],
                 'max_delay' => $taskData['value']['max_delay'],
                 'min_stay_duration' => $taskData['value']['min_stay_duration'],
                 'min_arrival_duration' => $taskData['value']['min_arrival_duration'],
@@ -179,6 +183,6 @@ class RouteTaskService
             return $baseUrl . "/s/" . $this->urlShortenerService->shorten($urlWithoutShortener, $this->user_id, $key);
         }
 
-        return "";
+        return null;
     }
 }

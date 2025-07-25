@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use Barryvdh\DomPDF\Facade\Pdf;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
@@ -78,6 +79,18 @@ class ReportExportService
 
         $row += 1;
 
+        function deepMerge(array $default, array $custom): array
+        {
+            foreach ($custom as $key => $value) {
+                if (isset($default[$key]) && is_array($default[$key]) && is_array($value)) {
+                    $default[$key] = deepMerge($default[$key], $value);
+                } else {
+                    $default[$key] = $value;
+                }
+            }
+            return $default;
+        }
+
         // ------------------- DATA ---------------------
         $writeGroup = function ($group, &$row, $sheet, $depth = 0) use (&$writeGroup, $lastLetter) {
             $columns = $group['content']['columns'] ?? [];
@@ -105,30 +118,47 @@ class ReportExportService
                 $content = $group['content'];
                 $columns = $content['columns'] ?? [];
 
-                $colNames = array_map(fn($col) => $col['name'], $columns);
-                $sheet->fromArray($colNames, null, "A{$row}");
+                $colIndex = 1;
+                foreach ($columns as $col) {
+                    $cell = Coordinate::stringFromColumnIndex($colIndex) . $row;
+                    $sheet->setCellValue($cell, $col['name'] ?? '');
 
-                $sheet->getStyle("A{$row}:{$lastLetter}{$row}")->applyFromArray([
-                    'font' => ['bold' => true],
-                    'fill' => [
-                        'fillType' => Fill::FILL_SOLID,
-                        'startColor' => ['rgb' => ltrim($content['bgColor'] ?? 'EBF1DE', '#')]
-                    ],
-                    'borders' => [
-                        'allBorders' => [
-                            'borderStyle' => \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN,
-                            'color' => ['rgb' => '000000']
-                        ]
-                    ],
-                    'alignment' => ['horizontal' => Alignment::HORIZONTAL_LEFT]
-                ]);
+                    $headerStyle = deepMerge([
+                        'font' => ['bold' => true],
+                        'fill' => [
+                            'fillType' => Fill::FILL_SOLID,
+                            'startColor' => ['rgb' => ltrim($content['bgColor'] ?? 'EBF1DE', '#')]
+                        ],
+                        'borders' => [
+                            'allBorders' => [
+                                'borderStyle' => \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN,
+                                'color' => ['rgb' => '000000']
+                            ]
+                        ],
+                        'alignment' => ['horizontal' => Alignment::HORIZONTAL_LEFT]
+                    ], $col['style'] ?? []);
+
+                    if (
+                        isset($headerStyle['alignment']['horizontal']) &&
+                        is_array($headerStyle['alignment']['horizontal'])
+                    ) {
+                        $headerStyle['alignment']['horizontal'] = $headerStyle['alignment']['horizontal'][0] ?? Alignment::HORIZONTAL_LEFT;
+                    }
+
+                    $sheet->getStyle($cell)->applyFromArray($headerStyle);
+                    $colIndex++;
+                }
+
                 $row++;
 
                 foreach ($content['rows'] as $dataRow) {
                     $colIndex = 1;
                     foreach ($columns as $col) {
                         $key = $col['key'];
-                        $value = $dataRow[$key];
+                        $cellData = $dataRow[$key] ?? ['value' => null, 'style' => []];
+                        $value = $cellData['value'] ?? null;
+                        $style = $cellData['style'] ?? [];
+
                         $cell = Coordinate::stringFromColumnIndex($colIndex) . $row;
 
                         if (in_array($key, ['imei', 'phone', 'sap_code'])) {
@@ -137,18 +167,20 @@ class ReportExportService
                             $sheet->setCellValue($cell, $value);
                         }
 
+                        $finalStyle = deepMerge([
+                            'borders' => [
+                                'allBorders' => [
+                                    'borderStyle' => \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN,
+                                    'color' => ['rgb' => '000000']
+                                ]
+                            ],
+                            'alignment' => ['horizontal' => Alignment::HORIZONTAL_LEFT]
+                        ], $style);
+
+                        $sheet->getStyle($cell)->applyFromArray($finalStyle);
+
                         $colIndex++;
                     }
-
-                    $sheet->getStyle("A{$row}:{$lastLetter}{$row}")->applyFromArray([
-                        'borders' => [
-                            'allBorders' => [
-                                'borderStyle' => \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN,
-                                'color' => ['rgb' => '000000']
-                            ]
-                        ],
-                        'alignment' => ['horizontal' => Alignment::HORIZONTAL_LEFT]
-                    ]);
 
                     $row++;
                 }
@@ -182,5 +214,15 @@ class ReportExportService
         (new Xlsx($spreadsheet))->save($tempFile);
 
         return response()->download($tempFile, $filename)->deleteFileAfterSend(true);
+    }
+
+    public function exportToPDF(array $reportData, $reportId): BinaryFileResponse
+    {
+        $pdf = Pdf::loadView('report_template', compact('reportData', 'reportId'))->setPaper('a4');
+
+        $tempFile = tempnam(sys_get_temp_dir(), 'report') . '.pdf';
+        $pdf->save($tempFile);
+
+        return response()->download($tempFile, 'report.pdf')->deleteFileAfterSend(true);
     }
 }

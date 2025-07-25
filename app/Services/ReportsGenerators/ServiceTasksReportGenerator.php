@@ -84,19 +84,19 @@ class ServiceTasksReportGenerator
                 ];
 
                 return [
-                    'group_name' => $group['title'],
-                    'tracker_name' => $tracker['label'],
-                    'description' => $task['description'],
-                    'status' => $statusTranslations[$task['status']],
-                    'traveled_distance_percentage' => $traveled_distance_percentage ? $traveled_distance_percentage . '%' : '-',
-                    'distace_left' => $distance_left ? $distance_left . " km" : '-',
-                    'engine_hours_percentage' => $engine_hours_percentage ? $engine_hours_percentage . '%' : '-',
-                    'engine_hours_left' => $engine_hours_left ? $engine_hours_left . " h" : '-',
-                    'days_passed_percentage' => $days_passed_percentage ? $days_passed_percentage . '%' : '-',
-                    'days_left' => $days_left ? $days_left . " días" : '-',
-                    'cost' => $task['cost'],
-                    'cost_display' => number_format($task['cost'], 2, '.', ','),
-                    'comment' => $task['comment'],
+                    'group_name' => ["value" => $group['title']],
+                    'tracker_name' => ["value" => $tracker['label']],
+                    'description' => ["value" => $task['description']],
+                    'status' => ["value" => $statusTranslations[$task['status']]],
+                    'traveled_distance_percentage' => ["value" => $traveled_distance_percentage ? $traveled_distance_percentage . '%' : '-'],
+                    'distace_left' => ["value" => $distance_left ? $distance_left . " km" : '-'],
+                    'engine_hours_percentage' => ["value" => $engine_hours_percentage ? $engine_hours_percentage . '%' : '-'],
+                    'engine_hours_left' => ["value" => $engine_hours_left ? $engine_hours_left . " h" : '-'],
+                    'days_passed_percentage' => ["value" => $days_passed_percentage ? $days_passed_percentage . '%' : '-'],
+                    'days_left' => ["value" => $days_left ? $days_left . " días" : '-'],
+                    'cost' => ["value" => $task['cost']],
+                    'cost_display' => ["value" => number_format($task['cost'], 2, '.', ',')],
+                    'comment' => ["value" => $task['comment']],
                 ];
             });
 
@@ -104,7 +104,9 @@ class ServiceTasksReportGenerator
             $grouped = $enriched->groupBy('group_name')->map(function ($tasks, $groupName) {
 
                 return [
-                    'groupLabel' => $groupName . " (" . $tasks->count() . " servicios)" . " Costo Total (" . number_format($tasks->sum('cost'), 2, '.', ',') . ")",
+                    'groupLabel' => $groupName . " (" . $tasks->count() . " servicios)" . " Costo Total (" . number_format($tasks->sum(function ($task) {
+                        return $task['cost']['value'];
+                    }), 2, '.', ',') . ")",
                     'bgColor' => '#C5D9F1',
                     'content' => [
                         'bgColor' => '#f2f2f2',

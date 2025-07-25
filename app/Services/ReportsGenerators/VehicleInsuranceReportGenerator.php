@@ -137,13 +137,13 @@ class VehicleInsuranceReportGenerator
                             ],
                             'rows' => $records->map(function ($record) {
                                 return [
-                                    'tracker_label' => $record['tracker_label'],
-                                    'reg_number' => $record['reg_number'],
-                                    'odometer' => number_format($record['odometer'], 2, '.', ','),
-                                    'insurance_policy_number' => $record['insurance_policy_number'],
-                                    'insurance_valid_till' => $record['insurance_valid_till'],
-                                    'days_left' => $record['days_left'],
-                                    'days_exceeded' => $record['days_exceeded'],
+                                    'tracker_label' => ["value" => $record['tracker_label']],
+                                    'reg_number' => ["value" => $record['reg_number']],
+                                    'odometer' => ["value" => number_format($record['odometer'], 2, '.', ',')],
+                                    'insurance_policy_number' => ["value" => $record['insurance_policy_number']],
+                                    'insurance_valid_till' => ["value" => $record['insurance_valid_till']],
+                                    'days_left' => ["value" => $record['days_left']],
+                                    'days_exceeded' => ["value" => $record['days_exceeded']],
                                 ];
                             })->values()->toArray(),
                         ],

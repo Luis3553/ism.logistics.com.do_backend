@@ -6,6 +6,7 @@ use App\Services\ProGpsApiService;
 use Carbon\Carbon;
 use Carbon\CarbonPeriod;
 use Illuminate\Support\Facades\Log;
+use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 
 class TasksAndVisitsReportGenerator
 {
@@ -44,9 +45,6 @@ class TasksAndVisitsReportGenerator
             $report->percent = 50;
             $report->save();
 
-            // =========================
-            // ✅ FORMATTED STRUCTURE
-            // =========================
             $reportData = [
                 'title' => 'Informe de Visitas',
                 'date' => 'Desde: ' . date('d/m/Y h:i A', strtotime($from)) . ' hasta ' . date('d/m/Y h:i A', strtotime($to)),
@@ -70,6 +68,11 @@ class TasksAndVisitsReportGenerator
                                 ->flatten(1)
                                 ->sum(fn($tracker) => $tracker['total']['done'] ?? 0),
                         ],
+                        [
+                            'title' => 'Eficiencia General',
+                            'value' => number_format(($taskCounted->flatten(1)->sum(fn($tracker) => $tracker['total']['done'] ?? 0) /
+                                $taskCounted->flatten(1)->sum(fn($tracker) => $tracker['total']['assigned'] ?? 0) * 100), 2, '.') . '%',
+                        ]
                     ]
                 ],
                 'data' => $taskCounted->map(function ($trackers, $groupName) use ($days) {
@@ -79,34 +82,55 @@ class TasksAndVisitsReportGenerator
                         'content' => [
                             'bgColor' => '#f2f2f2',
                             'columns' => array_merge([
-                                ['name' => 'Nombre del objeto', 'key' => 'tracker'],
-                                ['name' => '% Eficiencia', 'key' => 'efficiency'],
-                                ['name' => 'Días', 'key' => 'label'],
-                                ['name' => 'Todos', 'key' => 'total'],
+                                ['name' => 'Nombre del objeto', 'key' => 'tracker', "style" => ['alignment' => ['horizontal' => 'center']]],
+                                ['name' => '% Eficiencia', 'key' => 'efficiency', "style" => ['alignment' => ['horizontal' => 'center']]],
+                                ['name' => 'Días', 'key' => 'label', "style" => ['alignment' => ['horizontal' => 'center']]],
+                                ['name' => 'Todos', 'key' => 'total', "style" => ['alignment' => ['horizontal' => 'center']]],
                             ], array_map(function ($day) {
-                                return ['name' => date('d', strtotime($day)), 'key' => $day];
+                                return ['name' => date('d', strtotime($day)), 'key' => $day, "style" => ['alignment' => ['horizontal' => 'center']]];
                             }, $days)),
-                            'rows' => collect($trackers)->flatMap(function ($tracker) use ($days) {
+                            'rows' => collect($trackers)->flatMap(function ($tracker, $index) use ($days) {
                                 $totalAssigned = collect($days)->sum(fn($day) => $tracker[$day]['assigned'] ?? 0);
                                 $totalDone = collect($days)->sum(fn($day) => $tracker[$day]['done'] ?? 0);
                                 $efficiency = $totalAssigned === 0 ? '0%' : round(($totalDone / $totalAssigned) * 100, 2) . '%';
 
                                 $assignedRow = [
-                                    'tracker' => $tracker['tracker'],
-                                    'efficiency' => $efficiency,
-                                    'label' => 'Asignado',
-                                    'total' => $totalAssigned,
-                                ] + collect($days)->mapWithKeys(function ($day) use ($tracker) {
-                                    return [$day => $tracker[$day]['assigned'] ?? 0];
+                                    'tracker' => [
+                                        "value" => $tracker['tracker']
+                                    ],
+                                    'efficiency' => [
+                                        "value" => $efficiency,
+                                        "style" => ['alignment' => ['horizontal' => 'center']]
+                                    ],
+                                    'label' => [
+                                        "value" => 'Asignado',
+                                        "style" => ['alignment' => ['horizontal' => 'right'], 'fill' => ['fillType' => 'solid', 'startColor' => ['rgb' => ($index % 2 === 0) ? 'dce6f1' : 'FFFFFF']]]
+                                    ],
+                                    'total' => [
+                                        "value" => $totalAssigned,
+                                        "style" => ["font" => ['bold' => true], 'alignment' => ['horizontal' => 'center'], 'fill' => ['fillType' => 'solid', 'startColor' => ['rgb' => ($index % 2 === 0) ? 'dce6f1' : 'FFFFFF']]]
+                                    ]
+                                ] + collect($days)->mapWithKeys(function ($day) use ($tracker, $index) {
+                                    return [
+                                        $day => [
+                                            "value" => $tracker[$day]['assigned'] ?? 0,
+                                            "style" => ['alignment' => ['horizontal' => 'center'], 'fill' => ['fillType' => 'solid', 'startColor' => ['rgb' => ($index % 2 === 0) ? 'dce6f1' : 'FFFFFF']]]
+                                        ]
+                                    ];
                                 })->toArray();
 
                                 $doneRow = [
-                                    'tracker' => null,
-                                    'efficiency' => null,
-                                    'label' => 'Completado',
-                                    'total' => $totalDone,
-                                ] + collect($days)->mapWithKeys(function ($day) use ($tracker) {
-                                    return [$day => $tracker[$day]['done'] ?? 0];
+                                    'tracker' => ["value" => null, "style" => ['alignment' => ['horizontal' => 'center']]],
+                                    'efficiency' => ["value" => null, "style" => ['alignment' => ['horizontal' => 'center']]],
+                                    'label' => ["value" => 'Completado', "style" => ['alignment' => ['horizontal' => 'right'], 'fill' => ['fillType' => 'solid', 'startColor' => ['rgb' => ($index % 2 === 0) ? 'dce6f1' : 'FFFFFF']]]],
+                                    'total' => ["value" => $totalDone, "style" => ["font" => ['bold' => true], 'alignment' => ['horizontal' => 'center'], 'fill' => ['fillType' => 'solid', 'startColor' => ['rgb' => ($index % 2 === 0) ? 'dce6f1' : 'FFFFFF']]]],
+                                ] + collect($days)->mapWithKeys(function ($day) use ($tracker, $index) {
+                                    return [
+                                        $day => [
+                                            "value" => $tracker[$day]['done'] ?? 0,
+                                            "style" => ['alignment' => ['horizontal' => 'center'], 'fill' => ['fillType' => 'solid', 'startColor' => ['rgb' => ($index % 2 === 0) ? 'dce6f1' : 'FFFFFF']]]
+                                        ]
+                                    ];
                                 })->toArray();
 
                                 return [$assignedRow, $doneRow];
@@ -138,15 +162,16 @@ class TasksAndVisitsReportGenerator
     private function generateExcelColumnDimensions(array $days): array
     {
         $base = [
-            'A' => 35, // Objeto
-            'B' => 12, // % Eficiencia
-            'C' => 11, // Días
-            'D' => 8, // Todos
+            'A' => 25,
+            'B' => 12,
+            'C' => 12,
+            'D' => 8,
         ];
 
-        $start = ord('E');
+        $startIndex = 5;
         foreach (range(0, count($days) - 1) as $i) {
-            $base[chr($start + $i)] = 6;
+            $colLetter = Coordinate::stringFromColumnIndex($startIndex + $i);
+            $base[$colLetter] = 5;
         }
 
         return $base;

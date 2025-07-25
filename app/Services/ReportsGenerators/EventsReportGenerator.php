@@ -43,12 +43,12 @@ class EventsReportGenerator
 
                 $formatEventRow = function ($event, $name = '-') {
                     return [
-                        'name' => $name,
-                        'start_date' => $event['start_date'] ?? '-',
-                        'end_date' => $event['end_date'] ?? '-',
-                        'time' => $event['time'] ?? '-',
-                        'address' => $event['address'] ?? '-',
-                        'emergency' => !empty($event['emergency']) ? 'Sí' : 'No',
+                        'name' => ["value" => $name],
+                        'start_date' => ["value" => $event['start_date'] ?? '-'],
+                        'end_date' => ["value" => $event['end_date'] ?? '-'],
+                        'time' => ["value" => $event['time'] ?? '-'],
+                        'address' => ["value" => $event['address'] ?? '-'],
+                        'emergency' => ["value" => !empty($event['emergency']) ? 'Sí' : 'No'],
                     ];
                 };
 

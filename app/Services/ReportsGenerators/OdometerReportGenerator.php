@@ -18,17 +18,26 @@ class OdometerReportGenerator
                 return in_array($tracker['id'], $report->report_payload['trackers']);
             });
             $trackersIds = $trackers->pluck('id');
+
+            $endpoints = [
+                ['key' => 'tracker_states', 'params' => ['trackers' => $trackersIds]],
+                ['key' => 'vehicles'],
+                ['key' => 'groups']
+            ];
+
+            $responses = $apiService->fetchBatchRequests($endpoints);
+
             $OdometerReport = $apiService->getOdometersOfListOfTrackersInPeriodRange($trackersIds, $date);
-            $vehicles = collect($apiService->getVehicles()['list'])
+            $vehicles = collect($responses['vehicles']['list'])
                 ->where('tracker_id', '!=', null)
                 ->keyBy('tracker_id');
 
-            $trackersStates = $apiService->getTrackersStates($trackersIds)['states'];
+            $trackersStates = $responses['tracker_states']['states'];
             $trackers = $trackers->filter(function ($tracker) use ($trackersStates) {
                 return $trackersStates[$tracker['id']]['connection_status'] !== 'just_registered';
             });
 
-            $groups = collect($apiService->getGroups()['list'])->keyBy('id');
+            $groups = collect($responses['groups']['list'])->keyBy('id');
 
             $enriched = $trackers->map(function ($tracker) use ($OdometerReport, $vehicles, $groups) {
                 $groupTitle = $groups[$tracker['group_id']]['title'] ?? 'Grupo Principal';
@@ -88,11 +97,11 @@ class OdometerReportGenerator
                             ],
                             'rows' => $rows->map(function ($r) {
                                 return [
-                                    'tracker_name' => $r['tracker_name'],
-                                    'reg_number' => $r['reg_number'],
-                                    'odometer' => $r['odometer'],
-                                    'last_activity' => $r['last_activity'],
-                                    'sap_code' => $r['sap_code'],
+                                    'tracker_name' => ["value" => $r['tracker_name']],
+                                    'reg_number' => ["value" => $r['reg_number']],
+                                    'odometer' => ["value" => $r['odometer']],
+                                    'last_activity' => ["value" => $r['last_activity']],
+                                    'sap_code' => ["value" => $r['sap_code']],
                                 ];
                             })->values()->toArray()
                         ]

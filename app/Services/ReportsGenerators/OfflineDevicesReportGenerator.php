@@ -20,23 +20,39 @@ class OfflineDevicesReportGenerator
             });
 
             $trackersIds = $trackers->pluck('id');
-            $vehicles = collect($apiService->getVehicles()['list'])
+
+            $endpoints = [
+                ['key' => 'tracker_states', 'params' => ['trackers' => $trackersIds]],
+                ['key' => 'vehicles'],
+                ['key' => 'groups'],
+                ['key' => 'tags']
+            ];
+
+            $responses = $apiService->fetchBatchRequests($endpoints);
+
+            $vehicles = collect($responses['vehicles']['list'])
                 ->where('tracker_id', '!=', null)
                 ->keyBy('tracker_id');
 
-            $trackersStates = $apiService->getTrackersStates($trackersIds)['states'];
+            $trackersStates = $responses['tracker_states']['states'];
 
             $trackers = $trackers->filter(function ($tracker) use ($trackersStates) {
                 return $trackersStates[$tracker['id']]['connection_status'] === 'offline';
             });
 
-            $groups = collect($apiService->getGroups()['list'])->keyBy('id');
+            $groups = collect($responses['groups']['list'])->keyBy('id');
+            $tags = collect($responses['tags']['list'])->keyBy('id');
 
-            $enriched = $trackers->map(function ($tracker) use ($vehicles, $groups, $trackersStates) {
+            $enriched = $trackers->map(function ($tracker) use ($vehicles, $groups, $trackersStates, $tags) {
                 $groupTitle = $groups[$tracker['group_id']]['title'] ?? 'Grupo Principal';
 
                 $vehicle = $vehicles[$tracker['id']] ?? null;
                 $last_update = $trackersStates[$tracker['id']]['last_update'];
+
+                $tagNames = collect($tracker['tag_bindings'] ?? [])
+                    ->map(function ($tagObject) use ($tags) {
+                        return $tags[$tagObject['tag_id']]['name'] ?? '-';
+                    })->implode(', ');
 
                 return [
                     'group_name' => $groupTitle,
@@ -46,8 +62,9 @@ class OfflineDevicesReportGenerator
                     'brand_and_model' => (explode(' ', trim($tracker['label']))[0] . " " . ($vehicle['model'] ?? "-")),
                     'imei' => $tracker['source']['device_id'],
                     'phone' => $this->decodePhoneNumber($tracker['source']['phone']) ?? "-",
-                    'last_activity' => $last_update ?? "-",
-                    'offline_since' => Carbon::parse($last_update)->locale('es')->diffForHumans(now(), true, false, 7)
+                    'last_activity' => $last_update ? date('d/m/Y h:i A', strtotime($last_update)) : "-",
+                    'offline_since' => Carbon::parse($last_update)->locale('es')->diffForHumans(now(), true, false, 7),
+                    'tags' => $tagNames
                 ];
             });
 
@@ -84,17 +101,19 @@ class OfflineDevicesReportGenerator
                                 ['name' => 'Teléfono', 'key' => 'phone'],
                                 ['name' => 'Última Actividad', 'key' => 'last_activity'],
                                 ['name' => 'Tiempo fuera de línea', 'key' => 'offline_since'],
+                                ['name' => 'Etiquetas', 'key' => 'tags']
                             ],
                             'rows' => $rows->map(function ($r) {
                                 return [
-                                    'tracker_name' => $r['tracker_name'],
-                                    'reg_number' => $r['reg_number'],
-                                    'sap_code' => $r['sap_code'],
-                                    'brand_and_model' => $r['brand_and_model'],
-                                    'imei' => $r['imei'],
-                                    'phone' => $r['phone'],
-                                    'last_activity' => $r['last_activity'] ? date('d/m/Y h:i A', strtotime($r['last_activity'])) : '-',
-                                    'offline_since' => $r['offline_since']
+                                    'tracker_name' => ["value" => $r['tracker_name']],
+                                    'reg_number' => ["value" => $r['reg_number']],
+                                    'sap_code' => ["value" => $r['sap_code']],
+                                    'brand_and_model' => ["value" => $r['brand_and_model']],
+                                    'imei' => ["value" => $r['imei']],
+                                    'phone' => ["value" => $r['phone']],
+                                    'last_activity' => ["value" => $r['last_activity']],
+                                    'offline_since' => ["value" => $r['offline_since']],
+                                    'tags' => ["value" => $r['tags']]
                                 ];
                             })->values()->toArray()
                         ]
@@ -102,13 +121,14 @@ class OfflineDevicesReportGenerator
                 })->values()->toArray(),
                 'columns_dimensions_for_excel_file' => [
                     'A' => 43,
-                    'B' => 15,
+                    'B' => 16,
                     'C' => 11,
                     'D' => 23,
                     'E' => 18,
                     'F' => 12,
                     'G' => 19,
                     'H' => 58,
+                    'I' => 80,
                 ],
             ];
 

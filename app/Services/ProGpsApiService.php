@@ -173,9 +173,19 @@ class ProGpsApiService
 
     public function getOdometerOfListOfTrackers($trackersIds)
     {
-        $response = $this->post("odometer_list", [
+        $response = $this->post("tracker_odometer_counter", [
             'trackers' => $trackersIds,
             'type' => 'odometer',
+        ]);
+
+        return $response->json();
+    }
+
+    public function getEngineHoursOfListOfTrackers($trackersIds)
+    {
+        $response = $this->post("tracker_engine_hours_counter", [
+            'trackers' => $trackersIds,
+            'type' => 'engine_hours',
         ]);
 
         return $response->json();
@@ -278,6 +288,8 @@ class ProGpsApiService
         'tracker_read' => 'tracker/read',
         'tracker_states' => 'tracker/get_states',
         'tracker_history' => 'history/tracker/list',
+        'tracker_odometer_counter' => 'tracker/counter/value/list',
+        'tracker_engine_hours_counter' => 'tracker/counter/value/list',
         'event_types' => 'tracker/rule/list',
         'history' => 'history/tracker/list',
         'garages' => 'garage/list',
@@ -288,6 +300,5 @@ class ProGpsApiService
         'models' => 'tracker/list_models',
         'tags' => 'tag/list',
         'user_info' => 'user/get_info',
-        'odometer_list' => 'tracker/counter/value/list',
     ];
 }

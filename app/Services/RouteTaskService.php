@@ -58,13 +58,14 @@ class RouteTaskService
         $validWeekdays = $taskConfig['days_of_week'];
         $weekdayOrdinal = $taskConfig['weekday_ordinal'] ?? null;
 
-        if (!in_array($today->dayOfWeek, $validWeekdays)) return false;
+        if (!in_array($today->isoWeekday(), $validWeekdays)) return false;
 
         if ($frequencyType === 'every_x_weeks') {
-            $startOfCycle = $startDate->copy();
-            while (!in_array($startOfCycle->dayOfWeek, $validWeekdays)) {
-                $startOfCycle->addDay();
+            $firstValidDay = $startDate->copy();
+            while (!in_array($firstValidDay->isoWeekday(), $validWeekdays)) {
+                $firstValidDay->addDay();
             }
+            $startOfCycle = $firstValidDay->copy()->startOfWeek(Carbon::MONDAY);
 
             if ($today->lt($startOfCycle)) {
                 return false;
@@ -77,19 +78,45 @@ class RouteTaskService
         }
 
         if ($frequencyType === 'every_x_months') {
-            $monthsDiff = $startDate->diffInMonths($today->copy()->startOfMonth());
-            if ($monthsDiff % $frequency !== 0) {
-                return false;
-            }
-
+            $firstValidDay = null;
             foreach ($validWeekdays as $weekday) {
-                $expectedDay = $today->copy()->nthOfMonth($weekdayOrdinal, $weekday);
-                if ($expectedDay && $today->isSameDay($expectedDay)) {
-                    return true;
+                $carbonWeekday = ($weekday === 7) ? 0 : $weekday;
+                $candidateDay = $startDate->copy()->nthOfMonth($weekdayOrdinal, $carbonWeekday);
+
+                if ($candidateDay->gte($startDate)) {
+                    if (is_null($firstValidDay) || $candidateDay->lt($firstValidDay)) {
+                        $firstValidDay = $candidateDay;
+                    }
                 }
             }
 
-            return $today->isSameDay($expectedDay);
+            if (is_null($firstValidDay)) {
+                $nextMonth = $startDate->copy()->addMonthNoOverflow()->startOfMonth();
+                $firstValidDay = null;
+                foreach ($validWeekdays as $weekday) {
+                    $carbonWeekday = ($weekday === 7) ? 0 : $weekday;
+                    $candidateDay = $nextMonth->copy()->nthOfMonth($weekdayOrdinal, $carbonWeekday);
+
+                    if (is_null($firstValidDay) || $candidateDay->lt($firstValidDay)) {
+                        $firstValidDay = $candidateDay;
+                    }
+                }
+            }
+
+            if (!$firstValidDay) {
+                return false;
+            }
+
+            $carbonWeekdayToday = ($today->isoWeekday() === 7) ? 0 : $today->isoWeekday();
+            $expectedDay = $today->copy()->nthOfMonth($weekdayOrdinal, $carbonWeekdayToday);
+
+            if ($expectedDay && $today->isSameDay($expectedDay) && $expectedDay->gte($startDate)) {
+                $monthsSinceFirstCycle = $firstValidDay->copy()->startOfMonth()->diffInMonths($today->copy()->startOfMonth());
+
+                return $monthsSinceFirstCycle % $frequency === 0;
+            }
+
+            return false;
         }
 
         return false;

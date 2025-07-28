@@ -40,6 +40,8 @@ class RouteTaskService
                         'route' => $this->generateRouteTask($taskConfig, $taskData),
                         'task' => $this->generateSimpleTask($taskConfig, $taskData),
                     };
+
+                    $this->checkCycleCompletion($taskConfig, $today);
                 }
             }
         } catch (Throwable $e) {
@@ -49,6 +51,35 @@ class RouteTaskService
             throw $e;
         }
     }
+
+
+    protected function checkCycleCompletion($taskConfig, Carbon $today)
+    {
+        if (is_null($taskConfig->occurrence_limit)) {
+            return; // No limit = ignore
+        }
+
+        $frequencyType = $taskConfig['frequency'];
+
+        if ($frequencyType === 'every_x_weeks') {
+            if ($this->isWeeklyCycleComplete($taskConfig, $today)) {
+                $taskConfig->increment('occurrence_count');
+                if ($taskConfig->occurrence_count >= $taskConfig->occurrence_limit) {
+                    $taskConfig->update(['is_active' => false]);
+                }
+            }
+        }
+
+        if ($frequencyType === 'every_x_months') {
+            if ($this->isMonthlyCycleComplete($taskConfig, $today)) {
+                $taskConfig->increment('occurrence_count');
+                if ($taskConfig->occurrence_count >= $taskConfig->occurrence_limit) {
+                    $taskConfig->update(['is_active' => false]);
+                }
+            }
+        }
+    }
+
 
     public function shouldGenerateTask($taskConfig, Carbon $today): bool
     {
@@ -184,6 +215,54 @@ class RouteTaskService
             'create_form' => true,
         ]);
     }
+
+    function isWeeklyCycleComplete($taskConfig, Carbon $today): bool
+    {
+        $startDate = Carbon::parse($taskConfig['start_date']);
+        $frequency = $taskConfig['frequency_value'];
+        $validWeekdays = $taskConfig['days_of_week'];
+        $firstValidDay = $startDate->copy();
+        while (!in_array($firstValidDay->isoWeekday(), $validWeekdays)) {
+            $firstValidDay->addDay();
+        }
+
+        $weeksSinceStart = floor($firstValidDay->diffInWeeks($today));
+        $cycleIndex = floor($weeksSinceStart / $frequency);
+
+        $cycleStart = $firstValidDay->copy()->startOfWeek(Carbon::MONDAY)->addWeeks($cycleIndex * $frequency);
+
+        $expectedDates = [];
+        foreach ($validWeekdays as $day) {
+            $expectedDates[] = $cycleStart->copy()->addDays($day - 1)->toDateString();
+        }
+
+        return $today->toDateString() === max($expectedDates);
+    }
+
+    function isMonthlyCycleComplete($taskConfig, Carbon $today): bool
+    {
+        $startDate = Carbon::parse($taskConfig['start_date']);
+        $frequency = $taskConfig['frequency_value'];
+        $validWeekdays = $taskConfig['days_of_week'];
+        $weekdayOrdinal = $taskConfig['weekday_ordinal'];
+
+        $monthsSinceStart = $startDate->copy()->startOfMonth()->diffInMonths($today->copy()->startOfMonth());
+        $cycleIndex = floor($monthsSinceStart / $frequency);
+
+        $cycleMonth = $startDate->copy()->startOfMonth()->addMonths($cycleIndex * $frequency);
+
+        $expectedDates = [];
+        foreach ($validWeekdays as $weekday) {
+            $carbonWeekday = ($weekday === 7) ? 0 : $weekday;
+            $date = $cycleMonth->copy()->nthOfMonth($weekdayOrdinal, $carbonWeekday);
+            if ($date) {
+                $expectedDates[] = $date->toDateString();
+            }
+        }
+
+        return $today->toDateString() === max($expectedDates);
+    }
+
 
     public function getCheckpointImageUrl($checkpoint)
     {

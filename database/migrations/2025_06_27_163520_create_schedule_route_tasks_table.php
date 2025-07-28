@@ -21,6 +21,8 @@ return new class extends Migration
             $table->enum('frequency', ['every_x_weeks', 'every_x_months']);
             $table->unsignedInteger('frequency_value');
             $table->json('days_of_week');
+            $table->unsignedInteger('occurrence_limit')->nullable();
+            $table->unsignedInteger('occurrence_count')->default(0);
             $table->tinyInteger('weekday_ordinal')->nullable();
             $table->boolean('is_valid')->default(true);
             $table->boolean('is_active')->default(true);

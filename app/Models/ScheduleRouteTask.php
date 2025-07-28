@@ -52,4 +52,18 @@ class ScheduleRouteTask extends Model
             set: fn($value) => \Carbon\Carbon::parse($value)->format('Y-m-d')
         );
     }
+
+    protected static function booted()
+    {
+        static::updating(function ($task) {
+            if ($task->isDirty('is_active') && $task->is_active === true) {
+                if (
+                    !is_null($task->occurrence_limit) &&
+                    $task->occurrence_count >= $task->occurrence_limit
+                ) {
+                    $task->occurrence_count = 0;
+                }
+            }
+        });
+    }
 }

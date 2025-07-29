@@ -47,7 +47,10 @@ class ScheduleRouteTaskController extends Controller
 
         $sharedData = $this->getSharedDataForTasks();
 
-        $resources = collect($tasks)->filter(fn($task) => !empty($task))->map(fn($task) => new ScheduleRouteTaskResource($task, $sharedData));
+        $resources = collect($tasks)
+            ->filter(fn($task) => isset($sharedData['tasksMap'][$task->task_id]))
+            ->map(fn($task) => new ScheduleRouteTaskResource($task, $sharedData))
+            ->values();
 
         return response()->json([
             'list' => $resources,

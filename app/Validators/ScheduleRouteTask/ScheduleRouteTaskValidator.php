@@ -32,6 +32,8 @@ class ScheduleRouteTaskValidator
         'weekday_ordinal.integer' => 'The weekday ordinal must be an integer.',
         'weekday_ordinal.between' => 'The weekday ordinal must be between 1 and 4.',
         'is_active.boolean' => 'The is_active field must be true or false.',
+        'ocurrence_limit.integer' => 'The occurrence limit must be an integer.',
+        'ocurrence_limit.min' => 'The occurrence limit must be at least 1.',
     ];
 
     public static function validateForCreate(array $data): Validator
@@ -53,8 +55,9 @@ class ScheduleRouteTaskValidator
                     }
                 },
             ],
-            'start_date' => 'required|date',
-            'is_active' => 'boolean'
+            'start_date' => 'required|date|after_or_equal:today',
+            'is_active' => 'boolean',
+            'ocurrence_limit' => 'nullable|integer|min:1',
         ], self::$validatonMessages);
     }
 
@@ -77,8 +80,9 @@ class ScheduleRouteTaskValidator
                     }
                 },
             ],
-            'start_date' => 'sometimes|required|date',
-            'is_active' => 'sometimes|boolean'
+            'start_date' => 'sometimes|required|date|after_or_equal:today',
+            'is_active' => 'sometimes|boolean',
+            'ocurrence_limit' => 'sometimes|nullable|integer|min:1',
         ], self::$validatonMessages);
     }
 }

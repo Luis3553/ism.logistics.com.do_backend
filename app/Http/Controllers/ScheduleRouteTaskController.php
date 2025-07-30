@@ -111,9 +111,12 @@ class ScheduleRouteTaskController extends Controller
 
         if (!$task) return response()->json(['message' => 'Task not found or you do not have permission to update it'], 404);
 
+        $data = $request->all();
+        $data['ocurrence_count'] = 0;
+
         $sharedData = $this->getSharedDataForTasks();
 
-        $task->update($request->all());
+        $task->update($data);
 
         return response()->json(['message' => 'Task updated successfully', 'data' => new ScheduleRouteTaskResource($task,  $sharedData)], 200);
     }

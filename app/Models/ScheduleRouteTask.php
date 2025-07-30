@@ -27,7 +27,9 @@ class ScheduleRouteTask extends Model
         'days_of_week',
         'is_valid',
         'is_active',
-        'start_date'
+        'start_date',
+        'ocurrence_limit',
+        'ocurrence_count',
     ];
 
     protected $casts = [

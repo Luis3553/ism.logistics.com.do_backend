@@ -53,6 +53,8 @@ class ScheduleRouteTaskResource extends JsonResource
             'is_valid' => $this->is_valid,
             'is_active' => $this->is_active,
             'start_date' => $this->start_date,
+            'ocurrence_limit' => $this->ocurrence_limit,
+            'ocurrence_count' => $this->ocurrence_count,
         ];
     }
 }

@@ -12,6 +12,7 @@ use App\Validators\Reports\ReportValidatorInterface;
 use App\Validators\Reports\OdometerReportValidator;
 use App\Validators\Reports\SpeedupReportValidator;
 use App\Validators\Reports\TasksAndVisitsReportsValidator;
+use App\Validators\Reports\TripReportValidator;
 
 class ReportValidatorFactory
 {
@@ -32,6 +33,7 @@ class ReportValidatorFactory
             7 => new OfflineDevicesReportValidator(),
             8 => new TasksAndVisitsReportsValidator(),
             9 => new DevicesBatteryLevelReportValidator(),
+            10 => new TripReportValidator(),
             default => throw new \InvalidArgumentException("Unknown report type: $type"),
         };
     }

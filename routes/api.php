@@ -2,7 +2,6 @@
 
 use App\Http\Controllers\DetailsController;
 use App\Http\Controllers\DriverController;
-use App\Http\Controllers\FormController;
 use App\Http\Controllers\GeofenceConfigController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\NotificationsController;
@@ -12,7 +11,6 @@ use App\Http\Controllers\UrlController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['verifyHash'])->group(function () {
-    Route::get('form/template/list', [FormController::class, 'getTemplateList']);
 
     Route::prefix('home')->group(function () {
         Route::prefix('count')->group(function () {

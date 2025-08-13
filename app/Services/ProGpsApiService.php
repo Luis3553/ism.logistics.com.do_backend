@@ -27,26 +27,32 @@ class ProGpsApiService
         ])->post("{$this->baseUrl}/{$endpoint}", $params);
     }
 
-    public function fetchBatchRequests(array $requests): array
+    public function fetchBatchRequests(array $requests, int $batchSize = 50): array
     {
-        return Http::pool(function (Pool $pool) use ($requests) {
-            $responses = [];
+        $results = [];
 
-            foreach ($requests as $index => $request) {
-                $key = $request['key'];
-                $params = $request['params'] ?? [];
-                $endpoint = $this->endpoints[$key] ?? $key;
-                $params['hash'] = $this->apiKey;
+        foreach (array_chunk($requests, $batchSize) as $batch) {
+            $batchResults = Http::pool(function (Pool $pool) use ($batch) {
+                foreach ($batch as $request) {
+                    $key    = $request['key'];
+                    $params = $request['params'] ?? [];
+                    $label  = $request['label'] ?? $key;
 
-                $responses[$key] = $pool
-                    ->as($key)
-                    ->withHeaders(['Content-Type' => 'application/json'])
-                    ->post("{$this->baseUrl}/{$endpoint}", $params);
-            }
+                    $endpoint = $this->endpoints[$key] ?? $key;
+                    $params['hash'] = $this->apiKey;
 
-            return $responses;
-        });
+                    $pool->as($label)
+                        ->withHeaders(['Content-Type' => 'application/json'])
+                        ->post("{$this->baseUrl}/{$endpoint}", $params);
+                }
+            });
+
+            $results += $batchResults;
+        }
+
+        return $results;
     }
+
 
     public function getTaskList()
     {
@@ -169,6 +175,11 @@ class ProGpsApiService
     public function getUserInfo(): array
     {
         return $this->post('user_info')->json() ?? [];
+    }
+
+    public function getTrackOfTracker($params): array
+    {
+        return $this->post('track', $params)->json() ?? [];
     }
 
     public function getOdometerOfListOfTrackers($trackersIds)
@@ -300,5 +311,6 @@ class ProGpsApiService
         'models' => 'tracker/list_models',
         'tags' => 'tag/list',
         'user_info' => 'user/get_info',
+        'track' => 'track/list',
     ];
 }

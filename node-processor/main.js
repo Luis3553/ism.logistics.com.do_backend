@@ -6,9 +6,11 @@ import { createTableStructureForSpeedupReport } from "./createTableStructureForS
 import fetchAddresses from "./utils/geocoder.js";
 import updateProgress from "./utils/updateProgress.js";
 import { getTrackerGroups, getTrackers } from "./utils/dataHelpers.js";
-import { sendResult } from "./sendResult.js";
+import fs from "fs";
+import os from "os";
+import path from "path";
 
-const limit = pLimit(1);
+const limit = pLimit(5);
 const argv = minimist(process.argv.slice(2), {
     string: ["hash", "report_id", "ids", "from", "to", "allowed_speed", "min_duration"],
     alias: {},
@@ -44,7 +46,12 @@ const minDuration = argv.min_duration;
 
         let result = createTableStructureForSpeedupReport({ outputs, allowedSpeed, minDuration, fromDate, toDate, groups, trackersInfo });
 
-        await sendResult(reportId, result, hash);
+        const tempDir = os.tmpdir();
+        const tempFilePath = path.join(tempDir, `speedup_report_${reportId}_${Date.now()}.json`);
+        fs.writeFileSync(tempFilePath, JSON.stringify(result));
+
+        // Optionally, you can log the temp file path for Laravel to read
+        console.log(tempFilePath);
         process.exit(0);
     } catch (error) {
         console.error(error);

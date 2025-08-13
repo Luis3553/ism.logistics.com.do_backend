@@ -89,6 +89,7 @@
                 array_fill(0, max(0, count($reportData['data'][0]['content']['columns'] ?? []) - 4), 10),
             ),
             9 => [180, 100, 40, 65, 90, 110, 65],
+            10 => [60, 50, 240, 50, 240, 85, 70, 80, 90],
         ];
 
         $sumOfColumnWidths = array_sum($columnWidthsForDataTables[$reportId] ?? []);
@@ -104,6 +105,7 @@
             7 => 'landscape',
             8 => 'landscape',
             9 => 'portrait',
+            10 => 'landscape',
         ];
 
         $widths = $columnWidthsForDataTables[$reportId];

@@ -11,6 +11,7 @@ use App\Services\ReportsGenerators\OdometerReportGenerator;
 use App\Services\ReportsGenerators\SpeedupReportGenerator;
 use App\Services\ReportsGenerators\EventsReportGenerator;
 use App\Services\ReportsGenerators\TasksAndVisitsReportGenerator;
+use App\Services\ReportsGenerators\TripReportGenerator;
 
 class ReportGeneratorFactory
 {
@@ -33,6 +34,7 @@ class ReportGeneratorFactory
             7 => new OfflineDevicesReportGenerator(),
             8 => new TasksAndVisitsReportGenerator(),
             9 => new DevicesBatteryLevelReportGenerator(),
+            10 => new TripReportGenerator(),
             default => throw new \InvalidArgumentException("Invalid report type ID: {$reportTypeId}"),
         };
     }

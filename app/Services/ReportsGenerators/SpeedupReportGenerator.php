@@ -3,6 +3,7 @@
 namespace App\Services\ReportsGenerators;
 
 use App\Models\User;
+use Exception;
 use Illuminate\Support\Facades\Log;
 use Symfony\Component\Process\Process;
 
@@ -43,11 +44,21 @@ class SpeedupReportGenerator
         $process->run();
 
         if (!$process->isSuccessful()) {
-            Log::error($process->getErrorOutput(), [
-                'report_id' => $reportId,
-            ]);
-            $report->percent = -1;
-            $report->save();
+            throw new Exception('Error executing node script: ' . $process->getErrorOutput());
         }
+
+        $output = trim($process->getOutput());
+        $lines = explode("\n", $output);
+        $filePath = trim(end($lines));
+
+        if (!file_exists($filePath)) {
+            throw new Exception('Expected report file not found: ' . $filePath);
+        }
+
+        $fileContent = file_get_contents($filePath);
+        unlink($filePath);
+
+        $parsedContent = json_decode($fileContent, true);
+        return $parsedContent;
     }
 }

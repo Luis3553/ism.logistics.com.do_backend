@@ -166,7 +166,7 @@ class TripReportGenerator
                 $rows = Arr::get($trackerBlock, 'content.rows', []);
                 return collect($rows)->sum(fn($r) => (float) Arr::get($r, 'distance_km.raw', 0));
             });
-        $totalDistanceTraveledFormatted = number_format($totalDistanceTraveled, 2, ',', '') . ' Km';
+        $totalDistanceTraveledFormatted = number_format($totalDistanceTraveled, 2, '.', '') . ' Km';
 
         $totalTripTimeSeconds = collect($groupedTrips)
             ->pluck('content')

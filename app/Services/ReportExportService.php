@@ -184,13 +184,15 @@ class ReportExportService
 
                     $row++;
                 }
-
-                $sheet->mergeCells("A{$row}:{$lastLetter}{$row}");
-                $row++;
             } elseif (isset($group['content'])) {
                 foreach ($group['content'] ?? [] as $childGroup) {
                     $writeGroup($childGroup, $row, $sheet, $depth + 1);
                 }
+            }
+
+            if ($depth === 0) {
+                $sheet->mergeCells("A{$row}:{$lastLetter}{$row}");
+                $row++;
             }
         };
 

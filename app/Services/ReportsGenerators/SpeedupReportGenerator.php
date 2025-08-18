@@ -40,7 +40,7 @@ class SpeedupReportGenerator
         ];
 
         $process = new Process($cmd, null, ['APP_URL' => config('app.url')]);
-        $process->setTimeout(600); // Set a timeout of 10 minutes
+        $process->setTimeout(1200);
         $process->run();
 
         if (!$process->isSuccessful()) {

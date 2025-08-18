@@ -218,11 +218,11 @@ class ReportExportService
         return response()->download($tempFile, $filename)->deleteFileAfterSend(true);
     }
 
-    public function exportToPDF(array $reportData, $reportId): BinaryFileResponse
+    public function exportToPDF(array $reportContent, $report): BinaryFileResponse
     {
         ini_set('max_execution_time', 300);
         ini_set('memory_limit', '1024M');
-        $pdf = Pdf::loadView('report_template', compact('reportData', 'reportId'))->setPaper('a4');
+        $pdf = Pdf::loadView('report_template', compact('reportContent', 'report'))->setPaper('a4');
 
         $tempFile = tempnam(sys_get_temp_dir(), 'report') . '.pdf';
         $pdf->save($tempFile);

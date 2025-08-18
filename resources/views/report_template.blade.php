@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>{{ $reportData['title'] }}</title>
+    <title>{{ $reportContent['title'] }}</title>
     <style>
         body {
             margin: 0;
@@ -86,14 +86,17 @@
             7 => [180, 100, 65, 130, 85, 65, 60, 130, 120],
             8 => array_merge(
                 [145, 69, 50, 30],
-                array_fill(0, max(0, count($reportData['data'][0]['content']['columns'] ?? []) - 4), 10),
+                array_fill(0, max(0, count($reportContent['data'][0]['content']['columns'] ?? []) - 4), 10),
             ),
             9 => [180, 100, 40, 65, 90, 110, 65],
-            10 => [60, 50, 240, 50, 240, 85, 70, 80, 90],
+            10 =>
+                isset($report['report_payload']['detailed']) && $report['report_payload']['detailed']
+                    ? [60, 50, 240, 50, 240, 85, 70, 80, 90]
+                    : [90, 60, 60, 110, 110, 110, 110],
         ];
 
-        $sumOfColumnWidths = array_sum($columnWidthsForDataTables[$reportId] ?? []);
-        $colsCount = count($columnWidthsForDataTables[$reportId] ?? []);
+        $sumOfColumnWidths = array_sum($columnWidthsForDataTables[$report['report_type_id']] ?? []);
+        $colsCount = count($columnWidthsForDataTables[$report['report_type_id']] ?? []);
 
         $paperOrientations = [
             1 => 'portrait',
@@ -105,14 +108,17 @@
             7 => 'landscape',
             8 => 'landscape',
             9 => 'portrait',
-            10 => 'landscape',
+            10 =>
+                isset($report['report_payload']['detailed']) && $report['report_payload']['detailed']
+                    ? 'landscape'
+                    : 'portrait',
         ];
 
-        $widths = $columnWidthsForDataTables[$reportId];
+        $widths = $columnWidthsForDataTables[$report['report_type_id']];
     @endphp
     <style>
         @page {
-            size: A4 {{ $paperOrientations[$reportId] }};
+            size: A4 {{ $paperOrientations[$report['report_type_id']] }};
             margin: 0mm;
         }
 
@@ -126,16 +132,16 @@
 
 <body>
     {{-- Title and Date --}}
-    <h1>{{ $reportData['title'] }}</h1>
-    <h2>{{ $reportData['date'] }}</h2>
+    <h1>{{ $reportContent['title'] }}</h1>
+    <h2>{{ $reportContent['date'] }}</h2>
 
     {{-- Summary Table --}}
     <table class="summary-table">
         <tr>
             <td colSpan="2" style="background-color: #efefef; text-align: center;">
-                {{ $reportData['summary']['title'] }}</td>
+                {{ $reportContent['summary']['title'] }}</td>
         </tr>
-        @foreach ($reportData['summary']['rows'] as $row)
+        @foreach ($reportContent['summary']['rows'] as $row)
             <tr>
                 <td style="background-color: #efefef;">{{ $row['title'] }}</td>
                 <td style="text-align: right;">{{ $row['value'] }}</td>
@@ -144,7 +150,7 @@
     </table>
 
     {{-- Data Tables --}}
-    @foreach ($reportData['data'] as $group)
+    @foreach ($reportContent['data'] as $group)
         @include('group-table', [
             'group' => $group,
             'isNested' => false,

@@ -140,7 +140,7 @@ class TripReportGenerator
             ->count();
 
         $reportData = [
-            'title' => 'Informe de Viajes',
+            'title' => $detailed ? 'Informe de Viajes en Detalle' : 'Informe de Viajes en Resumen',
             'date' => 'Desde: ' . date('d/m/Y H:i', strtotime($from)) . ' hasta ' . date('d/m/Y H:i', strtotime($to)),
             'summary' => [
                 'title' => 'Resumen General',
